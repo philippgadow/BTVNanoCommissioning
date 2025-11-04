@@ -25,43 +25,91 @@ from BTVNanoCommissioning.utils.selection import (
 from BTVNanoCommissioning.helpers.definitions import get_discriminators, get_definitions
 
 
-def select_lepton(events, channel, campaign, iso_mode="tight"):
+PT_TEMPLATE_BINS = [30.0, 50.0, 70.0, 100.0, 140.0, 200.0, 300.0]
+MT_TEMPLATE_BINS = np.array([0.0, 40.0, 80.0, 200.0], dtype=float)
+PROB_TEMPLATE_BINS = np.array([11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 20.0], dtype=float)
+KIN_TEMPLATE_BINS = (len(MT_TEMPLATE_BINS) - 1) * (len(PROB_TEMPLATE_BINS) - 1)
+
+TAGGER_BRANCH_MAP = {
+    "DeepFlav": "btagDeepFlavB",
+    "DeepCSV": "btagDeepCSV",
+    "PNet": "btagPNetB",
+    "UParTAK4": "btagUParTAK4B",
+    "RobustParTAK4": "btagRobustParTAK4B",
+}
+
+TAGGER_LABEL_MAP = {
+    "DeepFlav": "DJET",
+    "DeepCSV": "DCSV",
+    "PNet": "PNET",
+    "UParTAK4": "PTR",
+    "RobustParTAK4": "RPTR",
+}
+
+
+def select_lepton(events, channel, campaign, iso_mode="tight", year=None):
+    """Build tight and sideband lepton selections following Otto's logic."""
+
     if channel == "mu":
-        tight = (
-            (events.Muon.pt > 30)
-            & (abs(events.Muon.eta) < 2.4)
-            & mu_idiso(events, campaign)
-        )
+        base = (events.Muon.pt > 30.0) & (abs(events.Muon.eta) < 2.4)
+        tight_id_iso = mu_idiso(events, campaign)
+        tight = base & tight_id_iso
+
         if iso_mode == "tight":
             mask = tight
         elif iso_mode == "sbiso":
             iso = ak.fill_none(events.Muon.pfRelIso04_all, 999.0)
-            loose = (
-                (events.Muon.pt > 30)
-                & (abs(events.Muon.eta) < 2.4)
-                & ak.fill_none(events.Muon.tightId, False)
-            )
+            loose = base & ak.fill_none(events.Muon.tightId, False)
             mask = loose & (~tight) & (iso > 0.15) & (iso < 0.40)
+        else:
+            raise ValueError(f"Unsupported iso mode '{iso_mode}'")
+
         return events.Muon[mask], mask
 
-    elif channel == "el":
-        tight = (
-            (events.Electron.pt > 30)
-            & (abs(events.Electron.eta) < 2.4)
-            & ele_mvatightid(events, campaign)
-        )
+    if channel == "el":
+        base = (events.Electron.pt > 30.0) & (abs(events.Electron.eta) < 2.4)
+
+        if year == 2018:
+            hem_veto = ~(
+                (events.Electron.eta < -1.3)
+                & (events.Electron.phi > -1.57)
+                & (events.Electron.phi < -0.87)
+            )
+            base = base & hem_veto
+
+        tight_id_iso = ele_mvatightid(events, campaign)
+        tight = base & tight_id_iso
+
         if iso_mode == "tight":
             mask = tight
         elif iso_mode == "sbiso":
-            loose = (events.Electron.pt > 30) & (abs(events.Electron.eta) < 2.4)
             mva = ak.fill_none(
                 getattr(events.Electron, "mvaIso", ak.zeros_like(events.Electron.pt)),
                 -99.0,
             )
-            mask = loose & (~tight) & (mva > 0.85) & (mva < 0.95)
+            loose = base & (~tight)
+            mask = loose & (mva > 0.85) & (mva < 0.95)
+        else:
+            raise ValueError(f"Unsupported iso mode '{iso_mode}'")
+
         return events.Electron[mask], mask
-    else:
-        raise ValueError(channel)
+
+    raise ValueError(channel)
+
+
+def chi2_to_prob(chi2):
+    chi2 = np.asarray(chi2, dtype=float)
+    base = 11.0 + np.sqrt(np.maximum(chi2, 0.0))
+    return np.clip(base, PROB_TEMPLATE_BINS[0] + 0.01, PROB_TEMPLATE_BINS[-1] - 0.01)
+
+
+def compute_kin_index(prob, mt):
+    fmt = np.clip(mt, MT_TEMPLATE_BINS[0] + 0.1, MT_TEMPLATE_BINS[-1] - 0.1)
+    fprob = np.clip(prob, PROB_TEMPLATE_BINS[0] + 0.01, PROB_TEMPLATE_BINS[-1] - 0.01)
+
+    bmt = np.clip(np.digitize(fmt, MT_TEMPLATE_BINS) - 1, 0, len(MT_TEMPLATE_BINS) - 2)
+    bprob = np.clip(np.digitize(fprob, PROB_TEMPLATE_BINS) - 1, 0, len(PROB_TEMPLATE_BINS) - 2)
+    return bmt * (len(PROB_TEMPLATE_BINS) - 1) + bprob
 
 
 def solve_nu_pz(px_l, py_l, pz_l, e_l, px_n, py_n, mW=80.4):
@@ -182,6 +230,28 @@ def ttbar_reco(jets, lepton, met, maxjets=6, mW=80.4, mT=172.5, sig_w=30.0, sig_
     best_mask = (li == best_idx) & (best_idx >= 0)
 
     # pick best objects
+    def _delta_phi(phi1, phi2):
+        dphi = phi1 - phi2
+        dphi = ak.where(dphi > np.pi, dphi - 2.0 * np.pi, dphi)
+        dphi = ak.where(dphi < -np.pi, dphi + 2.0 * np.pi, dphi)
+        return dphi
+
+    def _delta_r(obj1, obj2):
+        deta = obj1.eta - obj2.eta
+        dphi = _delta_phi(obj1.phi, obj2.phi)
+        return np.sqrt(np.maximum(0.0, deta * deta + dphi * dphi))
+
+    dr_terms = [
+        _delta_r(BH, JA),
+        _delta_r(BH, JB),
+        _delta_r(BH, BL),
+        _delta_r(BL, JA),
+        _delta_r(BL, JB),
+    ]
+    mindr_all = dr_terms[0]
+    for term in dr_terms[1:]:
+        mindr_all = ak.where(term < mindr_all, term, mindr_all)
+
     best = {
         "has_cand": has_cand,
         "best_mask": best_mask,
@@ -217,6 +287,8 @@ def ttbar_reco(jets, lepton, met, maxjets=6, mW=80.4, mT=172.5, sig_w=30.0, sig_
             with_name="FourVector",
         ),
         "chi2": ak.firsts(chi2[best_mask]),
+        "mindr": ak.firsts(mindr_all[best_mask]),
+        "valid_dnu": ak.firsts(valid_dnu[best_mask]),
     }
     return best
 
@@ -242,13 +314,13 @@ def tt_truth_category(best_BL, best_BH, is_mc):
 class NanoProcessor(processor.ProcessorABC):
     def __init__(
         self,
-        year="2022",
-        campaign="Summer22Run3",
+        year="2024",
+        campaign="Summer24",
         name="",
         isSyst=False,
         isArray=False,
         noHist=False,
-        chunksize=10000,
+        chunksize=1_000,
         selectionModifier="mu",  # "mu" or "el"
         tag_tagger="UParTAK4",
     ):
@@ -265,9 +337,33 @@ class NanoProcessor(processor.ProcessorABC):
         self.channel = selectionModifier
         self.SF_map = load_SF(self._year, self._campaign)
         self._wp_table = wp_dict(year, campaign)
-        self._all_taggers = sorted(self._wp_table.keys())
+
+        branch_name = TAGGER_BRANCH_MAP.get(tag_tagger)
+        if branch_name is None or branch_name not in get_discriminators():
+            raise ValueError(
+                f"Probe tagger '{tag_tagger}' is not supported by this workflow; no discriminant branch mapping."
+            )
+
+        self._all_taggers = [tag_tagger]
         self.tag_tagger = tag_tagger
         self._regions = ["central", "sbiso", "sbbtagM", "sbbtagL", "sbisobtagM"]
+
+        try:
+            year_int = int(str(self._year)[:4])
+        except ValueError:
+            year_int = 2022
+
+        if year_int >= 2024:
+            self.default_tagger_label = "PTR"
+        elif year_int >= 2022:
+            self.default_tagger_label = "DJET"
+        else:
+            self.default_tagger_label = "DJET"
+
+        self.default_tagger_key = next(
+            (k for k, v in TAGGER_LABEL_MAP.items() if v == self.default_tagger_label),
+            "DeepFlav",
+        )
 
     @property
     def accumulator(self):
@@ -389,18 +485,37 @@ class NanoProcessor(processor.ProcessorABC):
                             Hist.storage.Weight(),
                         )
 
-            # TnP yields per region per tagger
-            for tagger in self._all_taggers:
-                _hist_dict[f"{region}_{tagger}_tnp_yields"] = Hist.Hist(
-                    syst_axis,
-                    cat_axis,
-                    wp_axis,
-                    result_axis,
-                    ttcat_axis,
-                    kin_axis,
-                    ptb_axis,
-                    Hist.storage.Weight(),
-                )
+        # Global tag-and-probe templates matching Otto naming.
+        for tagger_key in self._all_taggers:
+            label = TAGGER_LABEL_MAP.get(tagger_key, tagger_key.upper())
+            branch = TAGGER_BRANCH_MAP.get(tagger_key)
+            if branch is None:
+                continue
+            wps = self._wp_table.get(tagger_key, {}).get("b", {})
+            if not wps:
+                continue
+            for wp_name in wps:
+                if wp_name == "No":
+                    continue
+                for tagside in ("lep", "had"):
+                    for proc in ("sig", "bkg"):
+                        for result in ("pass", "fail"):
+                            hist_name = (
+                                f"{tagside}_{proc}_btag_{label}_{wp_name}_{result}"
+                            )
+                            _hist_dict[hist_name] = Hist.Hist(
+                                Hist.axis.Variable(
+                                    PT_TEMPLATE_BINS, name="pt", label="$p_T$ [GeV]"
+                                ),
+                                Hist.axis.Regular(
+                                    KIN_TEMPLATE_BINS,
+                                    0,
+                                    KIN_TEMPLATE_BINS,
+                                    name="kinbin",
+                                    label="kinbin",
+                                ),
+                                Hist.storage.Weight(),
+                            )
 
         return _hist_dict
 
@@ -562,101 +677,6 @@ class NanoProcessor(processor.ProcessorABC):
                     )
                     continue
 
-                # TnP yields, per region and per tagger
-                # keys look like "<region>_<TAGGER>_tnp_yields"
-                if histname.endswith("_tnp_yields"):
-                    # parse the tagger for sanity if you need it
-                    # tagger = histname.replace(f"{region_prefix}_", "").replace("_tnp_yields", "")
-                    needed = {
-                        "tnp_had_fill",
-                        "tnp_lep_fill",
-                        "tnp_had_pt",
-                        "tnp_lep_pt",
-                        "bhad",
-                        "blep",
-                        "tt_cat",
-                        "kinbin",
-                    }
-                    if not needed.issubset(set(ev.fields)):
-                        continue
-
-                    # build available (tagger, wp, thr) from current run info
-                    WPD = wp_dict(self._year, self._campaign)
-
-                    def _has_score(obj, tagger):
-                        return hasattr(obj, f"btag{tagger}B")
-
-                    available = []
-                    for tagger, sub in WPD.items():
-                        if not (
-                            _has_score(ev.bhad, tagger) and _has_score(ev.blep, tagger)
-                        ):
-                            continue
-                        for wp_name, thr in sub.get("b", {}).items():
-                            if wp_name == "No":
-                                continue
-                            available.append((tagger, wp_name, float(thr)))
-
-                    ttcat = np.asarray(ak.to_numpy(ev.tt_cat), dtype="U5")
-                    kinbin = np.asarray(ak.to_numpy(ev.kinbin), dtype=np.int32)
-
-                    # had side
-                    had_fill = np.asarray(
-                        ak.to_numpy(ak.fill_none(ev.tnp_had_fill, False)), dtype=bool
-                    )
-                    had_pt = np.asarray(ak.to_numpy(ev.tnp_had_pt), dtype=float)
-                    bhad = ev.bhad
-
-                    if had_fill.any():
-                        sel = had_fill
-                        nsel = int(sel.sum())
-                        for tagger, wp_name, thr in available:
-                            scores = getattr(bhad, f"btag{tagger}B")
-                            tagbit = np.asarray(ak.to_numpy(scores > thr), dtype=bool)
-                            if nsel == 0:
-                                continue
-                            h.fill(
-                                syst=syst,
-                                cat=np.full(nsel, "had", dtype="U3"),
-                                wp=np.full(nsel, wp_name, dtype="U3"),
-                                result=np.where(tagbit[sel], "pass", "fail").astype(
-                                    "U4"
-                                ),
-                                tt_cat=ttcat[sel],
-                                kinbin=kinbin[sel],
-                                ptb=had_pt[sel],
-                                weight=evt_w[rmask][sel],
-                            )
-
-                    # lep side
-                    lep_fill = np.asarray(
-                        ak.to_numpy(ak.fill_none(ev.tnp_lep_fill, False)), dtype=bool
-                    )
-                    lep_pt = np.asarray(ak.to_numpy(ev.tnp_lep_pt), dtype=float)
-                    blep = ev.blep
-
-                    if lep_fill.any():
-                        sel = lep_fill
-                        nsel = int(sel.sum())
-                        for tagger, wp_name, thr in available:
-                            scores = getattr(blep, f"btag{tagger}B")
-                            tagbit = np.asarray(ak.to_numpy(scores > thr), dtype=bool)
-                            if nsel == 0:
-                                continue
-                            h.fill(
-                                syst=syst,
-                                cat=np.full(nsel, "lep", dtype="U3"),
-                                wp=np.full(nsel, wp_name, dtype="U3"),
-                                result=np.where(tagbit[sel], "pass", "fail").astype(
-                                    "U4"
-                                ),
-                                tt_cat=ttcat[sel],
-                                kinbin=kinbin[sel],
-                                ptb=lep_pt[sel],
-                                weight=evt_w[rmask][sel],
-                            )
-                    continue
-
                 # chi2 and ttbar reco summaries
                 base_name = histname.replace(f"{region_prefix}_", "")
                 if base_name in (
@@ -684,6 +704,158 @@ class NanoProcessor(processor.ProcessorABC):
 
         return output
 
+    def fill_btag_templates(
+        self,
+        pr,
+        output,
+        weights,
+        systematics,
+        isSyst,
+        shift_name,
+        isRealData,
+    ):
+        if self.noHist or len(pr) == 0:
+            return output
+
+        tt_cat = np.asarray(ak.to_numpy(pr.tt_cat), dtype="U5")
+        tt_cat = np.where(tt_cat == "other", "bkg", tt_cat)
+        if isRealData:
+            tt_cat[:] = "bkg"
+
+        kinbin = np.asarray(ak.to_numpy(pr.kinbin), dtype=np.int32)
+        had_fill = np.asarray(
+            ak.to_numpy(ak.fill_none(pr.tnp_had_fill, False)), dtype=bool
+        )
+        lep_fill = np.asarray(
+            ak.to_numpy(ak.fill_none(pr.tnp_lep_fill, False)), dtype=bool
+        )
+        mindr = np.asarray(ak.to_numpy(ak.fill_none(pr.mindr, 0.0)), dtype=float)
+        valid = np.asarray(
+            ak.to_numpy(ak.fill_none(pr.valid_dnu, False)), dtype=bool
+        )
+        quality = (mindr >= 0.8) & valid
+        had_fill &= quality
+        lep_fill &= quality
+
+        if not had_fill.any() and not lep_fill.any():
+            return output
+
+        available_taggers = []
+        for tagger_key in self._all_taggers:
+            branch = TAGGER_BRANCH_MAP.get(tagger_key)
+            if branch is None:
+                continue
+            if not hasattr(pr.bhad, branch):
+                continue
+            label = TAGGER_LABEL_MAP.get(tagger_key, tagger_key.upper())
+            available_taggers.append((tagger_key, branch, label))
+
+        if not available_taggers:
+            return output
+
+        weights_nominal = np.asarray(ak.to_numpy(weights.weight()), dtype=float)
+        pt_had = np.asarray(ak.to_numpy(pr.tnp_had_pt), dtype=float)
+        pt_lep = np.asarray(ak.to_numpy(pr.tnp_lep_pt), dtype=float)
+
+        if systematics is None:
+            systematics = ["nominal"]
+
+        for syst in systematics:
+            if not isSyst and syst != "nominal":
+                continue
+            if syst != "nominal":
+                continue
+
+            w = weights_nominal
+            for tagger_key, branch, label in available_taggers:
+                wps = self._wp_table.get(tagger_key, {}).get("b", {})
+                if not wps:
+                    continue
+
+                scores_had = np.asarray(
+                    ak.to_numpy(getattr(pr.bhad, branch)), dtype=float
+                )
+                scores_lep = np.asarray(
+                    ak.to_numpy(getattr(pr.blep, branch)), dtype=float
+                )
+
+                for wp_name, thr in wps.items():
+                    if wp_name == "No":
+                        continue
+                    thr_val = float(thr)
+                    pass_had = scores_had > thr_val
+                    pass_lep = scores_lep > thr_val
+
+                    self._fill_template_side(
+                        output,
+                        label,
+                        wp_name,
+                        "had",
+                        had_fill,
+                        pass_had,
+                        pt_had,
+                        kinbin,
+                        tt_cat,
+                        w,
+                        isRealData,
+                    )
+                    self._fill_template_side(
+                        output,
+                        label,
+                        wp_name,
+                        "lep",
+                        lep_fill,
+                        pass_lep,
+                        pt_lep,
+                        kinbin,
+                        tt_cat,
+                        w,
+                        isRealData,
+                    )
+
+        return output
+
+    def _fill_template_side(
+        self,
+        output,
+        tagger_label,
+        wp_name,
+        tagside,
+        mask,
+        pass_mask,
+        pt_vals,
+        kin_vals,
+        tt_cat,
+        weights,
+        isRealData,
+    ):
+        if not np.any(mask):
+            return
+
+        procs = ("sig", "bkg") if not isRealData else ("bkg",)
+        for proc in procs:
+            proc_mask = tt_cat == proc
+            base_mask = mask & proc_mask
+            if not np.any(base_mask):
+                continue
+
+            for result, res_mask in (("pass", pass_mask), ("fail", ~pass_mask)):
+                final_mask = base_mask & res_mask
+                if not np.any(final_mask):
+                    continue
+
+                hist_name = f"{tagside}_{proc}_btag_{tagger_label}_{wp_name}_{result}"
+                hist = output.get(hist_name)
+                if hist is None:
+                    continue
+
+                kin_fill = kin_vals[final_mask].astype(float) + 0.5
+                hist.fill(
+                    pt=pt_vals[final_mask],
+                    kinbin=kin_fill,
+                    weight=weights[final_mask],
+                )
+
     def process(self, events):
         events = missing_branch(events)
         vetoed_events, shifts = common_shifts(self, events)
@@ -695,6 +867,10 @@ class NanoProcessor(processor.ProcessorABC):
     def process_shift(self, events, shift_name):
         dataset = events.metadata["dataset"]
         isRealData = not hasattr(events, "genWeight")
+        try:
+            year_int = int(str(self._year)[:4])
+        except ValueError:
+            year_int = 2022
         output = {} if self.noHist else self.define_histograms(events)
         # print(f"=== process_shift: {dataset}, shift={shift_name}, isData={isRealData}, n={len(events)} ===")
 
@@ -709,9 +885,30 @@ class NanoProcessor(processor.ProcessorABC):
             output = dump_lumi(events[req_lumi], output)
 
         # Triggers
-        triggers_mu = ["IsoMu24", "Mu50"]
-        triggers_el = ["Ele32_WPTight_Gsf", "Ele50_CaloIdVT_GsfTrkIdT_PFJet165"]
-        triggers = triggers_mu if self.channel == "mu" else triggers_el
+        def _trigger_paths(year, channel):
+            if channel == "mu":
+                if year == 2016:
+                    return ["IsoMu24", "IsoTkMu24", "Mu50", "Mu27"]
+                if year == 2017:
+                    return ["IsoMu27", "Mu50"]
+                return ["IsoMu24", "Mu50"]
+            if channel == "el":
+                if year == 2016:
+                    return [
+                        "Ele27_WPTight_Gsf",
+                        "Ele32_WPTight_Gsf",
+                        "Ele50_CaloIdVT_GsfTrkIdT_PFJet165",
+                    ]
+                if year == 2017:
+                    return [
+                        "Ele27_WPTight_Gsf",
+                        "Ele32_WPTight_Gsf",
+                        "Ele50_CaloIdVT_GsfTrkIdT_PFJet165",
+                    ]
+                return ["Ele32_WPTight_Gsf", "Ele50_CaloIdVT_GsfTrkIdT_PFJet165"]
+            raise ValueError(channel)
+
+        triggers = _trigger_paths(year_int, self.channel)
         req_trig = HLT_helper(events, triggers)
 
         # MET filters
@@ -728,21 +925,40 @@ class NanoProcessor(processor.ProcessorABC):
             & (abs(events.Electron.eta) < 2.4)
             & ele_mvatightid(events, self._campaign)
         )
+        if year_int == 2018:
+            hem_veto = ~(
+                (events.Electron.eta < -1.3)
+                & (events.Electron.phi > -1.57)
+                & (events.Electron.phi < -0.87)
+            )
+            el_loose = el_loose & hem_veto
 
         # Jet cleaning
         def _clean_jets(ev, other_mu_mask, other_el_mask):
-            dr_mu = ev.Jet.metric_table(ev.Muon[other_mu_mask])
-            dr_el = ev.Jet.metric_table(ev.Electron[other_el_mask])
-            all_true = ak.ones_like(ev.Jet.pt, dtype=bool)
+            jets = ev.Jet
+            dr_mu = jets.metric_table(ev.Muon[other_mu_mask])
+            dr_el = jets.metric_table(ev.Electron[other_el_mask])
+            all_true = ak.ones_like(jets.pt, dtype=bool)
             has_mu = ak.num(ev.Muon[other_mu_mask], axis=1) > 0
             has_el = ak.num(ev.Electron[other_el_mask], axis=1) > 0
+
             clean_mu = ak.where(
                 has_mu, ak.all(dr_mu > 0.4, axis=-1, mask_identity=True), all_true
             )
             clean_el = ak.where(
                 has_el, ak.all(dr_el > 0.4, axis=-1, mask_identity=True), all_true
             )
-            base_jet_mask = jet_id(ev, self._campaign,max_eta=2.4, min_pt=25)
+
+            base_jet_mask = jet_id(ev, self._campaign, max_eta=2.4, min_pt=25)
+
+            if self._year == 2018:
+                hem_block = (
+                    (jets.eta < -1.3)
+                    & (jets.phi > -1.57)
+                    & (jets.phi < -0.87)
+                )
+                base_jet_mask = base_jet_mask & (~hem_block)
+
             return ak.fill_none(base_jet_mask & clean_mu & clean_el, False, axis=-1)
 
         # Cutflow helper
@@ -796,7 +1012,11 @@ class NanoProcessor(processor.ProcessorABC):
         # Loop over isolation modes
         for iso_mode in ["tight", "sbiso"]:
             sel_leps, sel_mask = select_lepton(
-                events, self.channel, self._campaign, iso_mode=iso_mode
+                events,
+                self.channel,
+                self._campaign,
+                iso_mode=iso_mode,
+                year=year_int,
             )
 
             # Lepton veto
@@ -851,7 +1071,7 @@ class NanoProcessor(processor.ProcessorABC):
                 jets_base,
                 self._year,
                 self._campaign,
-                tagger=self.tag_tagger,
+                tagger=self.default_tagger_key,
                 borc="b",
                 wp="L",
             )
@@ -859,16 +1079,18 @@ class NanoProcessor(processor.ProcessorABC):
                 jets_base,
                 self._year,
                 self._campaign,
-                tagger=self.tag_tagger,
+                tagger=self.default_tagger_key,
                 borc="b",
                 wp="M",
             )
             nb_L = ak.sum(ak.fill_none(bmask_L, False), axis=1)
             nb_M = ak.sum(ak.fill_none(bmask_M, False), axis=1)
 
-            mask_central = nb_M >= 1
-            mask_sb_btagM = (nb_M == 0) & (nb_L >= 1)
-            mask_sb_btagL = nb_L == 0
+            nb_L_np = ak.to_numpy(nb_L)
+            nb_M_np = ak.to_numpy(nb_M)
+            mask_central_np = nb_M_np >= 2
+            mask_sb_btagM_np = (nb_M_np == 0) & (nb_L_np >= 1)
+            mask_sb_btagL_np = nb_L_np == 0
 
             # MET 4-vector
             met_b = ak.zip(
@@ -883,13 +1105,32 @@ class NanoProcessor(processor.ProcessorABC):
 
             # ttbar reco ONCE per iso family
             best = ttbar_reco(jets_base, lep_base, met_b, maxjets=4)
-            has_cand = best.get("has_cand", ak.Array([]))
-            if not ak.any(has_cand):
+            has_cand = np.asarray(
+                ak.to_numpy(best.get("has_cand", ak.Array([]))), dtype=bool
+            )
+            if not has_cand.any():
                 continue
 
-            # Extract results once
+            valid_dnu = np.asarray(
+                ak.to_numpy(ak.fill_none(best["valid_dnu"], False)),
+                dtype=bool,
+            )
+            mindr_vals = np.asarray(
+                ak.to_numpy(ak.fill_none(best["mindr"], 0.0)),
+                dtype=float,
+            )
+            chi2_base = np.asarray(
+                ak.to_numpy(ak.fill_none(best["chi2"], np.inf)),
+                dtype=float,
+            )
+
+            quality_base = has_cand & valid_dnu & (mindr_vals >= 0.8)
+            if not quality_base.any():
+                continue
+
+            # Extract results once (ak arrays keep event indexing)
             BH, BL, JA, JB = best["BH"], best["BL"], best["JA"], best["JB"]
-            nu, tlep, thad, chi2 = best["nu"], best["tlep"], best["thad"], best["chi2"]
+            nu, tlep, thad = best["nu"], best["tlep"], best["thad"]
 
             # Compute derived quantities once
             had_tag = ak.fill_none(
@@ -897,7 +1138,7 @@ class NanoProcessor(processor.ProcessorABC):
                     BH,
                     self._year,
                     self._campaign,
-                    tagger=self.tag_tagger,
+                    tagger=self.default_tagger_key,
                     borc="b",
                     wp="M",
                 ),
@@ -908,7 +1149,7 @@ class NanoProcessor(processor.ProcessorABC):
                     BL,
                     self._year,
                     self._campaign,
-                    tagger=self.tag_tagger,
+                    tagger=self.default_tagger_key,
                     borc="b",
                     wp="M",
                 ),
@@ -917,7 +1158,6 @@ class NanoProcessor(processor.ProcessorABC):
             had_pt_ok = ak.fill_none(BH.pt >= 30.0, False)
             lep_pt_ok = ak.fill_none(BL.pt >= 30.0, False)
 
-            # Compute masses and kinematics once
             W_full = ak.zip(
                 {
                     "x": JA.x + JB.x,
@@ -936,21 +1176,40 @@ class NanoProcessor(processor.ProcessorABC):
             dr_lep_bhad_full = _dR(lep_base, BH)
             dr_ja_jb_full = _dR(JA, JB)
 
-            # Compute kinbin once
-            met_vals = ak.to_numpy(ev_base.MET.pt)
-            chi2_np = ak.to_numpy(chi2)
-            met_edges = np.array([0.0, 40.0, 80.0, 200.0], dtype=float)
-            prob_edges = np.arange(11.0, 21.0, 1.0)
-            q = chi2_np / (2.0 * np.log(10.0))
-            met_bin = np.clip(
-                np.digitize(met_vals, met_edges) - 1, 0, len(met_edges) - 2
-            )
-            prob_bin = np.clip(np.digitize(q, prob_edges) - 1, 0, len(prob_edges) - 2)
-            NQ = len(prob_edges) - 1
-            kinbin_full = (met_bin * NQ + prob_bin).astype(np.int32)
+            met_pt_np = np.asarray(ak.to_numpy(ev_base.MET.pt), dtype=float)
+            met_x_np = np.asarray(ak.to_numpy(met_b.x), dtype=float)
+            met_y_np = np.asarray(ak.to_numpy(met_b.y), dtype=float)
+            lep_pt_np = np.asarray(ak.to_numpy(lep_base.pt), dtype=float)
+            lep_px_np = np.asarray(ak.to_numpy(lep_base.px), dtype=float)
+            lep_py_np = np.asarray(ak.to_numpy(lep_base.py), dtype=float)
 
-            # Truth category once
+            prob_vals = chi2_to_prob(chi2_base)
+            mt_vals = np.sqrt(
+                np.maximum(
+                    0.0,
+                    (lep_pt_np + met_pt_np) ** 2
+                    - (lep_px_np + met_x_np) ** 2
+                    - (lep_py_np + met_y_np) ** 2,
+                )
+            )
+            kinbin_full = compute_kin_index(prob_vals, mt_vals).astype(np.int32)
+
             tt_cat_full = tt_truth_category(BL, BH, is_mc=not isRealData)
+
+            had_tag_base = np.asarray(
+                ak.to_numpy(ak.fill_none(had_tag, False)), dtype=bool
+            )
+            lep_tag_base = np.asarray(
+                ak.to_numpy(ak.fill_none(lep_tag, False)), dtype=bool
+            )
+            had_pt_ok_base = np.asarray(
+                ak.to_numpy(ak.fill_none(had_pt_ok, False)), dtype=bool
+            )
+            lep_pt_ok_base = np.asarray(
+                ak.to_numpy(ak.fill_none(lep_pt_ok, False)), dtype=bool
+            )
+            bh_pt_base = np.asarray(ak.to_numpy(BH.pt), dtype=float)
+            bl_pt_base = np.asarray(ak.to_numpy(BL.pt), dtype=float)
 
             # Now loop over regions and write immediately
             for rname, riso_mode, rtag_btagwp in region_specs:
@@ -959,27 +1218,31 @@ class NanoProcessor(processor.ProcessorABC):
 
                 # Select region mask
                 if rtag_btagwp == "M":
-                    rmask = has_cand & mask_central
+                    region_mask = mask_central_np
                 elif rtag_btagwp == "L":
-                    rmask = has_cand & mask_sb_btagM
+                    region_mask = mask_sb_btagM_np
                 else:
-                    rmask = has_cand & mask_sb_btagL
+                    region_mask = mask_sb_btagL_np
 
-                rmask_np = ak.to_numpy(ak.fill_none(rmask, False))
+                rmask_np = quality_base & region_mask
                 if not np.any(rmask_np):
                     continue
 
                 # TnP fills
                 require_tag = rname == "central"
-                ones = ak.ones_like(had_pt_ok, dtype=bool)
-                tnp_had_fill = ak.to_numpy(
-                    had_pt_ok & (lep_tag if require_tag else ones)
-                )[rmask_np]
-                tnp_lep_fill = ak.to_numpy(
-                    lep_pt_ok & (had_tag if require_tag else ones)
-                )[rmask_np]
-                tnp_had_pt = ak.to_numpy(BH.pt)[rmask_np]
-                tnp_lep_pt = ak.to_numpy(BL.pt)[rmask_np]
+                fill_had_base = had_pt_ok_base & (
+                    lep_tag_base if require_tag else np.ones_like(lep_tag_base)
+                )
+                fill_lep_base = lep_pt_ok_base & (
+                    had_tag_base if require_tag else np.ones_like(had_tag_base)
+                )
+                fill_had_base &= quality_base
+                fill_lep_base &= quality_base
+
+                tnp_had_fill = fill_had_base[rmask_np]
+                tnp_lep_fill = fill_lep_base[rmask_np]
+                tnp_had_pt = bh_pt_base[rmask_np]
+                tnp_lep_pt = bl_pt_base[rmask_np]
 
                 # Slice everything for this region
                 ev_r = ev_base[rmask_np]
@@ -1002,7 +1265,7 @@ class NanoProcessor(processor.ProcessorABC):
                 pr = ak.with_field(pr, nu_r, "nu")
                 pr = ak.with_field(pr, tl_r, "tlep")
                 pr = ak.with_field(pr, th_r, "thad")
-                pr = ak.with_field(pr, chi2_np[rmask_np], "chi2")
+                pr = ak.with_field(pr, chi2_base[rmask_np], "chi2")
                 pr = ak.with_field(pr, jets_r[:, :4], "SelJet")
 
                 if self.channel == "mu":
@@ -1028,6 +1291,8 @@ class NanoProcessor(processor.ProcessorABC):
                 )
                 pr = ak.with_field(pr, tt_cat_full[rmask_np], "tt_cat")
                 pr = ak.with_field(pr, ak.Array(kinbin_full[rmask_np]), "kinbin")
+                pr = ak.with_field(pr, ak.Array(mindr_vals[rmask_np]), "mindr")
+                pr = ak.with_field(pr, ak.Array(valid_dnu[rmask_np]), "valid_dnu")
 
                 # Write immediately for this region
                 if not self.noHist:
@@ -1036,6 +1301,15 @@ class NanoProcessor(processor.ProcessorABC):
                         [shift_name]
                         if shift_name is not None
                         else ["nominal"] + list(weights.variations)
+                    )
+                    output = self.fill_btag_templates(
+                        pr,
+                        output,
+                        weights,
+                        systematics,
+                        self.isSyst,
+                        shift_name,
+                        isRealData,
                     )
                     output = self.write_histograms(
                         pr, output, weights, systematics, self.isSyst, self.SF_map
