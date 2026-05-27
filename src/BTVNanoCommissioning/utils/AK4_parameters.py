@@ -181,8 +181,8 @@ correction_config = {
             "LUM": "puwei_2022_preEE.histo.root",  # new PU files, based on preEE
             "JME": {
                 "MC": "Summer22_22Sep2023_V3 Summer22_22Sep2023_JRV1",
-                "Run2022C": "Summer22_22Sep2023_RunCD_V3",
-                "Run2022D": "Summer22_22Sep2023_RunCD_V3",
+                "Run2022C": "Summer22_22Sep2023_V3",
+                "Run2022D": "Summer22_22Sep2023_V3",
             },  # update to latest JEC
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
@@ -211,10 +211,11 @@ correction_config = {
             "LUM": "puwei_2022_postEE.histo.root",  # new PU file, post EE
             "JME": {
                 "MC": "Summer22EE_22Sep2023_V3 Summer22EE_22Sep2023_JRV1",
-                "Run2022E": "Summer22EE_22Sep2023_RunE_V3",
-                "Run2022F": "Summer22EE_22Sep2023_RunF_V3",
-                "Run2022G": "Summer22EE_22Sep2023_RunG_V3",
+                "Run2022E": "Summer22EE_22Sep2023_V3",
+                "Run2022F": "Summer22EE_22Sep2023_V3",
+                "Run2022G": "Summer22EE_22Sep2023_V3",
             },
+            "JES_MC_year": "2022EE",
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightPFIso_DEN_TightID",
@@ -277,6 +278,7 @@ correction_config = {
                 "MC": "Summer23BPixPrompt23_V3 Summer23BPixPrompt23_RunD_JRV1",
                 "Run2023D": "Summer23BPixPrompt23_V3",
             },
+            "JES_MC_year": "2023BPix",
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightPFIso_DEN_TightID",
@@ -363,12 +365,12 @@ correction_config = {
                 "mu_Iso": "NUM_TightPFIso_DEN_TightID",
             },
             "EGM": {
-                "ele_Reco 2024 Electron-ID-SF": "",
-                "ele_ID 2024 Electron-ID-SF": "wp80iso",
+                "ele_Reco 2025 Electron-ID-SF": "",
+                "ele_ID 2025 Electron-ID-SF": "wp80iso",
             },
-            # Muon scale & smearing: reuse 2024 from Run3-24CDE...Summer24
+            # Muon scale & smearing
             "muonSS": "",
-            # Electron scale & smearing: use 2025 SaS from Run3-25Prompt-Summer24
+            # Electron scale & smearing
             "electronSS": [
                 "Scale",
                 "SmearAndSyst",
@@ -377,14 +379,10 @@ correction_config = {
             # JME: data L2L3Residual from Winter25 JME era.
             # JME_MC: MC truth JECs must come from the Summer24 era (L2Relative differs).
             # jetveto: jetvetomap from Winter25 JME era.
-            # muonSS: no 2025 muon scale/smearing yet, reuse Summer24.
-            # EGM: no 2025 electron ID SFs yet (electron.json.gz), reuse Summer24.
             "cvmfs_override": {
                 "JME": "Run3-25Prompt-Winter25-NanoAODv15",
                 "JME_MC": "Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15",
                 "jetveto": "Run3-25Prompt-Winter25-NanoAODv15",
-                "muonSS": "Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15",
-                "EGM": "Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15",
             },
         },
     },
