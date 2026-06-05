@@ -178,6 +178,8 @@ def load_SF(year, campaign, selMod="default", syst=False):
                 correct_map["BTV_cfg"] = conf["BTV"]
                 _btag_path = f"BTVNanoCommissioning.data.BTV.{campaign}"
                 for tagger in conf["BTV"]:
+                    if tagger == "beff":
+                        continue  # handled separately below
                     with importlib.resources.path(
                         _btag_path, conf["BTV"][tagger]
                     ) as filename:
@@ -203,6 +205,24 @@ def load_SF(year, campaign, selMod="default", syst=False):
                                     BTagScaleFactor.RESHAPE,
                                     methods="iterativefit,iterativefit,iterativefit",
                                 )
+
+            # b-efficiency SFs (charm-tagger or b-tagger WPs, derived externally)
+            if "beff" in conf.get("BTV", {}):
+                correct_map["beff"] = {}
+                _btv_cvmfs = _cvmfs_dir(campaign, "BTV")
+                _cvmfs_base = f"/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/{_btv_cvmfs}/latest/"
+                _pkg = f"BTVNanoCommissioning.data.BTV.{campaign}"
+                for beff_key, beff_fname in conf["BTV"]["beff"].items():
+                    cvmfs_path = _cvmfs_base + beff_fname
+                    if os.path.exists(cvmfs_path):
+                        correct_map["beff"][beff_key] = correctionlib.CorrectionSet.from_file(
+                            cvmfs_path
+                        )
+                    else:
+                        with importlib.resources.path(_pkg, beff_fname) as fp:
+                            correct_map["beff"][beff_key] = correctionlib.CorrectionSet.from_file(
+                                str(fp)
+                            )
 
         ## lepton SFs
         elif SF == "MUO" or SF == "EGM":
@@ -2107,6 +2127,70 @@ def puwei(nPU, correct_map, weights, syst=False):
             )
         else:
             weights.add("puweight", correct_map["LUM"][central_key](nPU))
+
+
+def beff_SFs(jets, SF_map, weights, beff_key, wp_name, syst=False):
+    """Apply b-jet efficiency SFs for a single WP to all b-jets in *jets*.
+
+    The correction is looked up from SF_map["beff"][beff_key], which is a
+    correctionlib CorrectionSet loaded from a JSON produced by the kinfit
+    pipeline or a combined fit.  The correction name inside the JSON is
+    expected to equal *beff_key*.
+
+    Only b-jets (hadronFlavour == 5) receive a non-unity SF; c-jets and
+    light jets are left at 1.0 (they are covered by separate SF measurements).
+    The fail-category conservation weight is omitted: only the pass-rate of
+    b-jets is corrected, which is a conservative approximation valid when the
+    b-jet fraction in the sample is small.
+
+    Parameters
+    ----------
+    jets     : selected jet collection (e.g. pruned_ev.SelJet)
+    SF_map   : correct_map returned by load_SF()
+    weights  : coffea Weights object
+    beff_key : key into SF_map["beff"] AND correction name inside the JSON,
+               e.g. "UParTAK4_ctag_beff" or "UParTAK4_beff"
+    wp_name  : working-point label, e.g. "L", "M", "T", "XT"
+    syst     : if True, also register up/down systematic variations
+    """
+    if "beff" not in SF_map or beff_key not in SF_map["beff"]:
+        return
+
+    corr = SF_map["beff"][beff_key][beff_key]
+    is_b = jets.hadronFlavour == 5
+
+    def _eval(variation):
+        # Per-jet SF: b-jets get the correction, all others get 1.0
+        sf_b = corr.evaluate(
+            wp_name,
+            variation,
+            ak.to_numpy(ak.flatten(jets.hadronFlavour[is_b])),
+            ak.to_numpy(ak.flatten(np.abs(jets.eta[is_b]))),
+            ak.to_numpy(ak.flatten(jets.pt[is_b])),
+        )
+        sf_all = ak.where(is_b, sf_b, ak.ones_like(jets.pt))
+        return ak.prod(sf_all, axis=1)
+
+    weight_name = f"beff_{beff_key}_{wp_name}"
+    nom = _eval("central")
+
+    if syst:
+        # Discover available systematic variations from the correction inputs
+        syst_labels = [
+            inp.description
+            for inp in corr.inputs
+            if inp.name == "systematic" or "systematic" in inp.name.lower()
+        ]
+        variations = [v for v in (syst_labels[0].split("/") if syst_labels else [])
+                      if v not in ("central",)]
+        if variations:
+            up   = _eval(f"up_{variations[0]}")
+            down = _eval(f"down_{variations[0]}")
+            weights.add(weight_name, nom, up, down)
+        else:
+            weights.add(weight_name, nom)
+    else:
+        weights.add(weight_name, nom)
 
 
 def btagSFs(jet, correct_map, weights, SFtype, syst=False):

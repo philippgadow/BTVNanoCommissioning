@@ -330,6 +330,14 @@ correction_config = {
                 "Scale",
                 "SmearAndSyst",
             ],
+            "BTV": {
+                "beff": {
+                    # b-jet efficiency SF at charm-tagger WPs (UParTAK4 CvL+CvB, kinfit-derived)
+                    "UParTAK4_ctag_beff": "UParTAK4_ctag_beff_kinfit_v0.json",
+                    # b-jet efficiency SF at b-tagger WPs (DY negtag, when available):
+                    # "UParTAK4_beff": "UParTAK4_beff_v0.json",
+                },
+            },
         },
         "tt_dilep": {
             "MUO": {
@@ -375,6 +383,14 @@ correction_config = {
                 "Scale",
                 "SmearAndSyst",
             ],
+            "BTV": {
+                "beff": {
+                    # b-jet efficiency SF at charm-tagger WPs (UParTAK4 CvL+CvB, kinfit-derived)
+                    "UParTAK4_ctag_beff": "UParTAK4_ctag_beff_kinfit_v0.json",
+                    # b-jet efficiency SF at b-tagger WPs (DY negtag, when available):
+                    # "UParTAK4_beff": "UParTAK4_beff_v0.json",
+                },
+            },
             # Per-POG CVMFS path overrides.
             # JME: data L2L3Residual from Winter25 JME era.
             # JME_MC: MC truth JECs must come from the Summer24 era (L2Relative differs).

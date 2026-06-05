@@ -6,6 +6,7 @@ from BTVNanoCommissioning.helpers.func import PFCand_link, dump_lumi, update
 from BTVNanoCommissioning.helpers.update_branch import missing_branch
 from BTVNanoCommissioning.utils.array_writer import array_writer
 from BTVNanoCommissioning.utils.correction import (
+    beff_SFs,
     common_shifts,
     load_lumi,
     load_SF,
@@ -319,6 +320,34 @@ class NanoProcessor(processor.ProcessorABC):
             ttbar_reweights=getattr(self, "ttbar_reweights", "none"),
             campaign=self._campaign,
         )
+
+        # Apply b-jet efficiency SFs for each tagger / WP combination.
+        # Each call adds a named weight (e.g. "beff_UParTAK4_ctag_beff_L")
+        # so the downstream template fit can select the correct one per WP.
+        if not isRealData and "beff" in self.SF_map:
+            for tagger in btag_wp_dict[f"{self._year}_{self._campaign}"]:
+                tag_obj = btag_wp_dict[f"{self._year}_{self._campaign}"][tagger]
+                # charm-tagger WPs (CvL+CvB)
+                ctag_key = f"UParT{tagger}_ctag_beff"
+                for stringency in tag_obj.get("c", {}):
+                    if stringency == "No":
+                        continue
+                    beff_SFs(
+                        pruned_ev.SelJet, self.SF_map, weights,
+                        beff_key=ctag_key, wp_name=stringency,
+                        syst=self.isSyst,
+                    )
+                # b-tagger WPs (when a beff JSON for b-taggers is available)
+                btag_key = f"UParT{tagger}_beff"
+                for stringency in tag_obj.get("b", {}):
+                    if stringency == "No":
+                        continue
+                    beff_SFs(
+                        pruned_ev.SelJet, self.SF_map, weights,
+                        beff_key=btag_key, wp_name=stringency,
+                        syst=self.isSyst,
+                    )
+
         # Configure systematics
         if shift_name is None:
             systematics = ["nominal"] + list(weights.variations)
