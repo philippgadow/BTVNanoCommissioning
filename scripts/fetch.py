@@ -211,6 +211,8 @@ def get_xrootd_sites_map():
             except:
                 continue
             for site in data:
+                if "rse" not in site.keys():
+                    continue
                 if site["type"] != "DISK":
                     continue
                 if site["rse"] == None:
@@ -227,7 +229,7 @@ def get_xrootd_sites_map():
                                     )
                         else:
                             sites_xrootd_access[site["rse"]] = proc["prefix"]
-        json.dump(sites_xrootd_access, open(".sites_map.json", "w"))
+        json.dump(sites_xrootd_access, open(".sites_map.json", "w"), indent=4)
 
     return json.load(open(".sites_map.json"))
 
@@ -1891,6 +1893,7 @@ def main(args):
         raise Exception(f"{args.output} exists")
 
     ## If you only provide dataset from the dataset name(DAS) or do from_workflow
+    das_input_file = None
     if args.from_dataset or args.from_workflow is not None:
         if args.from_dataset:
             f = open(args.input)
@@ -1908,6 +1911,7 @@ def main(args):
         if args.DAS_campaign is None:
             raise ("Please provide the campaign info when input dataset")
         args.input = args.input + "_DAS_" + args.campaign
+        das_input_file = args.input
         outf = open(args.input, "w")
 
         for l in lines:
@@ -1938,7 +1942,7 @@ def main(args):
                     if campaign_input.strip() == "all":
                         camp_idxs = list(range(len(campaigns)))
                         break
-
+                    cont = False
                     for camp_idx in campaign_input.split(","):
                         try:
                             idx = int(camp_idx) - 1
@@ -2073,6 +2077,11 @@ def main(args):
 
                         traceback.print_exc()
 
+    # Clean up intermediate DAS dataset list file
+    if das_input_file is not None and os.path.exists(das_input_file):
+        os.remove(das_input_file)
+        print(f"Cleaned up intermediate file: {das_input_file}")
+
     # Check the any file lists empty
     empty = True
     for dsname, flist in fdict.items():
@@ -2115,6 +2124,12 @@ def main(args):
         with open(f"metadata/{args.campaign}/{args.output}", "w") as fp:
             json.dump(fdict, fp, indent=4)
             print(f"The file is saved at: metadata/{args.campaign}/{args.output}")
+
+    # Remove sites_map.json if it exists
+    sites_map_path = ".sites_map.json"
+    if os.path.exists(sites_map_path):
+        os.remove(sites_map_path)
+        print(f"Removed existing {sites_map_path}")
 
 
 if __name__ == "__main__":

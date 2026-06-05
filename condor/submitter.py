@@ -23,11 +23,18 @@ def get_condor_submitter_parser(parser):
         required=True,
     )
     parser.add_argument(
+        "-nCPU",
+        "--nCPU",
+        default=1,
+        type=int,
+        help="Number of CPUs to request for each condor job (default: %(default)s). Job memory scales as nCPU*3GB, adjust if necessary.",
+    )
+    parser.add_argument(
         "-n",
         "--condorFileSize",
         type=int,
         default=50,
-        help="Number of files proceed per condor job",
+        help="Number of files proceed per condor job (default: %(default)s)",
     )
     parser.add_argument(
         "--outputDir",
@@ -84,10 +91,11 @@ def get_main_parser():
             "Summer23",
             "Summer23BPix",
             "Summer24",
-            "2018_UL",
-            "2017_UL",
-            "2016preVFP_UL",
-            "2016postVFP_UL",
+            "Prompt25",
+            "2018-UL",
+            "2017-UL",
+            "2016preVFP-UL",
+            "2016postVFP-UL",
             "CAMPAIGN_prompt_dataMC",
         ],
         help="Dataset campaign, change the corresponding correction files",
@@ -100,9 +108,10 @@ def get_main_parser():
             "False",
             "all",
             "weight_only",
-            "JERC_full",
-            "JERC_reduced",
-            "JERC_total",
+            "JEC_full",
+            "JEC_reduced",
+            "JEC_reduced_JER_split",
+            "JEC_total",
             "JP_MC",
         ],
         help="Run with systematics (default: %(default)s)",
@@ -167,15 +176,13 @@ if __name__ == "__main__":
         skip_tar = False
         if os.path.exists("BTVNanoCommissioning.tar.gz"):
             user_input = input(
-                "BTVNanoCommissioning.tar.gz already exists, skip the tarring? (y/n): "
+                "BTVNanoCommissioning.tar.gz already exists, skip the tarring? ([y]/n): "
             )
-            if user_input.lower() == "y":
+            if user_input.lower() != "n":
                 skip_tar = True
-            elif user_input.lower() == "n":
+            else:
                 skip_tar = False
                 os.remove("BTVNanoCommissioning.tar.gz")
-            else:
-                raise Exception("Invalid input, exiting")
 
         if not skip_tar:
             jobdirs = [d for d in os.listdir(base_dir) if d.startswith("jobs_")]
@@ -188,8 +195,8 @@ if __name__ == "__main__":
     # Create job dir
     job_dir = f"jobs_{args.jobName}"
     if os.path.exists(job_dir):
-        user_input = input("Job directory already exists, overwrite? (y/n): ")
-        if user_input.lower() == "y":
+        user_input = input("Job directory already exists, overwrite? ([y]/n): ")
+        if user_input.lower() != "n":
             shutil.rmtree(job_dir)
         else:
             raise Exception("Job exiting...")
@@ -251,10 +258,9 @@ if __name__ == "__main__":
 Executable = {executable}
 
 
-Arguments = $(JOBNUM)
+Arguments = $(JOBNUM) $(request_cpus)
 
-request_cpus = 1
-request_memory = 2000
+request_cpus = {nCPU}
 use_x509userproxy = true
 
 +JobFlavour = "{jobqueue}"
@@ -263,9 +269,13 @@ Log        = {log_dir}/job.log_$(Cluster)
 Output     = {log_dir}/job.out_$(Cluster)-$(Process)
 Error      = {log_dir}/job.err_$(Cluster)-$(Process)
 
+max_retries             = 10
+periodic_release        = True
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT_OR_EVICT
 transfer_input_files    = {transfer_input_files}
+JobBatchName            = {batch_name}
+transfer_output_files   = .success
 
 Queue JOBNUM from {jobnum_file}
 """.format(
@@ -274,6 +284,8 @@ Queue JOBNUM from {jobnum_file}
         log_dir=f"{base_dir}/{job_dir}/log",
         transfer_input_files=f"{base_dir}/{job_dir}/arguments.json,{base_dir}/{job_dir}/split_samples.json,{base_dir}/{job_dir}/jobnum_list.txt"
         + ("" if args.remoteRepo else f",{base_dir}/BTVNanoCommissioning.tar.gz"),
+        nCPU=args.nCPU,
+        batch_name=args.jobName,
         jobnum_file=f"{base_dir}/{job_dir}/jobnum_list.txt",
     )
     with open(os.path.join(job_dir, "submit.jdl"), "w") as f:

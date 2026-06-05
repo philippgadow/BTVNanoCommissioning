@@ -451,7 +451,13 @@ class NanoProcessor(processor.ProcessorABC):
         # Weight & Geninfo #
         ####################
 
-        weights = weight_manager(pruned_ev, self.SF_map, self.isSyst)
+        weights = weight_manager(
+            pruned_ev,
+            self.SF_map,
+            self.isSyst,
+            ttbar_reweights=getattr(self, "ttbar_reweights", "none"),
+            campaign=self._campaign,
+        )
 
         if shift_name is None:
             systematics = ["nominal"] + list(weights.variations)
@@ -550,8 +556,8 @@ class NanoProcessor(processor.ProcessorABC):
                 elif "btag" in histname and "Trans" not in histname:
                     for i in range(2):
                         if (
-                            str(i) not in histname
-                            or histname.replace(f"_{i}", "") not in events.Jet.fields
+                            str(i) in histname
+                            and histname.replace(f"_{i}", "") not in events.Jet.fields
                         ):
                             continue
                         h.fill(

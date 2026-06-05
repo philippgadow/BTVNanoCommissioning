@@ -70,7 +70,10 @@ class NanoProcessor(processor.ProcessorABC):
 
         isMu = False
         if "DYM" in self.selMod:
-            triggers = ["Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass8"]
+            if self._year in ["2016"]:
+                triggers = ["Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ"]
+            else:
+                triggers = ["Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass8"]
             isMu = True
         elif "DYE" in self.selMod:
             triggers = ["Ele23_Ele12_CaloIdL_TrackIdL_IsoVL"]
@@ -244,34 +247,35 @@ class NanoProcessor(processor.ProcessorABC):
         pruned_ev = events[event_level]
         pruned_ev["SelJet"] = event_jet[event_level]
         pruned_ev["AllSelJet"] = event_jet[event_level]  # untouched by histo_writter
-
         for tagger, tag_obj in btag_wp_dict[f"{self._year}_{self._campaign}"].items():
+            BNegScore = event_jet[f"btagNeg{tagger}B"]
+            # CvLNegScores exist but always -1 for Summer24 data and LO MC
+            CvBScore = event_jet[f"btag{tagger}CvB"]
+            CvBNegScore = event_jet[f"btagNeg{tagger}CvB"]
+            CvLNegScore = BNegScore * CvBNegScore / (1 - CvBNegScore)
             for stringency, wp in tag_obj["b"].items():
                 if stringency == "No":
                     continue
-                mask_postag = event_jet[f"btag{tagger}B"] > wp
-                mask_negtag = event_jet[f"btagNeg{tagger}B"] > wp
-                postag_jet = event_jet[mask_postag][event_level]
+                mask_negtag = BNegScore > wp
                 negtag_jet = event_jet[mask_negtag][event_level]
-                key = f"{tagger}{stringency}"
-                pruned_ev[f"{key}_postag_jet"] = postag_jet
-                pruned_ev[f"{key}_negtag_jet"] = negtag_jet
-                if isRealData:
-                    pruned_ev[f"{key}_postag_jet", "flavor"] = ak.zeros_like(
-                        postag_jet.pt,
-                        dtype=int,
-                    )
-                    pruned_ev[f"{key}_negtag_jet", "flavor"] = ak.zeros_like(
-                        negtag_jet.pt,
-                        dtype=int,
-                    )
-                else:
-                    pruned_ev[f"{key}_postag_jet", "flavor"] = flav[mask_postag][
-                        event_level
-                    ]
-                    pruned_ev[f"{key}_negtag_jet", "flavor"] = flav[mask_negtag][
-                        event_level
-                    ]
+                pruned_ev[f"{tagger}{stringency}_negtag_jet"] = negtag_jet
+                data_flavor = ak.zeros_like(negtag_jet.pt, dtype=int)
+                pruned_ev[f"{tagger}{stringency}_negtag_jet", "flavor"] = (
+                    data_flavor if isRealData else flav[mask_negtag][event_level]
+                )
+            for stringency, wp in tag_obj["c"].items():
+                if stringency == "No":
+                    continue
+                mask_negtag = ak.all(
+                    [CvLNegScore > wp[0], CvBScore > wp[1]],
+                    axis=0,
+                )
+                negtag_jet = event_jet[mask_negtag][event_level]
+                pruned_ev[f"{tagger}{stringency}_negtag_jet_cWP"] = negtag_jet
+                data_flavor = ak.zeros_like(negtag_jet.pt, dtype=int)
+                pruned_ev[f"{tagger}{stringency}_negtag_jet_cWP", "flavor"] = (
+                    data_flavor if isRealData else flav[mask_negtag][event_level]
+                )
         if isMu:
             pruned_ev["MuonPlus"] = sposmu
             pruned_ev["MuonMinus"] = snegmu
@@ -299,15 +303,22 @@ class NanoProcessor(processor.ProcessorABC):
         else:
             pruned_ev["AllSelJet", "flavor"] = flav[event_level]
 
-        # Find the PFCands associate with selected jets. Search from jetindex->JetPFCands->PFCand
-        if "PFCands" in events.fields:
+        # Link PFCands only when a downstream output actually consumes them.
+        needs_pfcands = self.isArray or any("PFCands" in key for key in output)
+        if needs_pfcands and "PFCands" in events.fields:
             pruned_ev["PFCands"] = PFCand_link(events, event_level, jetindx)
 
         ####################
         #     Output       #
         ####################
         # Configure SFs
-        weights = weight_manager(pruned_ev, self.SF_map, self.isSyst)
+        weights = weight_manager(
+            pruned_ev,
+            self.SF_map,
+            self.isSyst,
+            ttbar_reweights=getattr(self, "ttbar_reweights", "none"),
+            campaign=self._campaign,
+        )
         # Configure systematics
         if shift_name is None:
             systematics = ["nominal"] + list(weights.variations)
