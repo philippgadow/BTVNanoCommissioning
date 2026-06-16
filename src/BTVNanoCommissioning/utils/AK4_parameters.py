@@ -180,9 +180,9 @@ correction_config = {
             "DC": "Cert_Collisions2022_355100_362760_Golden.json",
             "LUM": "puwei_2022_preEE.histo.root",  # new PU files, based on preEE
             "JME": {
-                "MC": "Summer22_22Sep2023_V3 Summer22_22Sep2023_JRV2",
-                "Run2022C": "Summer22_22Sep2023_V3",
-                "Run2022D": "Summer22_22Sep2023_V3",
+                "MC": "Summer22_22Sep2023_V4 Summer22_22Sep2023_JRV2",
+                "Run2022C": "Summer22_22Sep2023_V4",
+                "Run2022D": "Summer22_22Sep2023_V4",
             },  # update to latest JEC
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
@@ -210,10 +210,10 @@ correction_config = {
             "DC": "Cert_Collisions2022_355100_362760_Golden.json",
             "LUM": "puwei_2022_postEE.histo.root",  # new PU file, post EE
             "JME": {
-                "MC": "Summer22EE_22Sep2023_V3 Summer22EE_22Sep2023_JRV2",
-                "Run2022E": "Summer22EE_22Sep2023_V3",
-                "Run2022F": "Summer22EE_22Sep2023_V3",
-                "Run2022G": "Summer22EE_22Sep2023_V3",
+                "MC": "Summer22EE_22Sep2023_V4 Summer22EE_22Sep2023_JRV2",
+                "Run2022E": "Summer22EE_22Sep2023_V4",
+                "Run2022F": "Summer22EE_22Sep2023_V4",
+                "Run2022G": "Summer22EE_22Sep2023_V4",
             },
             "JES_MC_year": "2022EE",
             "MUO": {
@@ -244,8 +244,8 @@ correction_config = {
             "DC": "Cert_Collisions2023_366442_370790_Golden.json",
             "LUM": "puwei_Summer23.histo.root",
             "JME": {
-                "MC": "Summer23Prompt23_V3 Summer23Prompt23_RunCv1234_JRV2",
-                "Run2023C": "Summer23Prompt23_V3",
+                "MC": "Summer23Prompt23_V4 Summer23Prompt23_RunCv1234_JRV2",
+                "Run2023C": "Summer23Prompt23_V4",
             },
             "jetveto": {"Summer23Prompt23_RunC_V1": "jetvetomap"},
             "JPCalib": {
@@ -275,8 +275,8 @@ correction_config = {
             "DC": "Cert_Collisions2023_366442_370790_Golden.json",
             "LUM": "puwei_Summer23BPix.histo.root",
             "JME": {
-                "MC": "Summer23BPixPrompt23_V3 Summer23BPixPrompt23_RunD_JRV2",
-                "Run2023D": "Summer23BPixPrompt23_V3",
+                "MC": "Summer23BPixPrompt23_V4 Summer23BPixPrompt23_RunD_JRV2",
+                "Run2023D": "Summer23BPixPrompt23_V4",
             },
             "JES_MC_year": "2023BPix",
             "MUO": {
@@ -306,14 +306,14 @@ correction_config = {
             "DC": "Cert_Collisions2024_378981_386951_Golden.json",
             "LUM": "puWeights_BCDEFGHI.json.gz",
             "JME": {
-                "MC": "Summer24Prompt24_V2 Summer24Prompt24_JRV1",
-                "Run2024C": "Summer24Prompt24_V2",
-                "Run2024D": "Summer24Prompt24_V2",
-                "Run2024E": "Summer24Prompt24_V2",
-                "Run2024F": "Summer24Prompt24_V2",
-                "Run2024G": "Summer24Prompt24_V2",
-                "Run2024H": "Summer24Prompt24_V2",
-                "Run2024I": "Summer24Prompt24_V2",
+                "MC": "Summer24Prompt24_V3 Summer24Prompt24_JRV1",
+                "Run2024C": "Summer24Prompt24_V3",
+                "Run2024D": "Summer24Prompt24_V3",
+                "Run2024E": "Summer24Prompt24_V3",
+                "Run2024F": "Summer24Prompt24_V3",
+                "Run2024G": "Summer24Prompt24_V3",
+                "Run2024H": "Summer24Prompt24_V3",
+                "Run2024I": "Summer24Prompt24_V3",
             },
             "jetveto": {"Summer24Prompt24_RunBCDEFGHI_V1": "jetvetomap"},
             "MUO": {
@@ -349,7 +349,7 @@ correction_config = {
             # not the data year.  Summer24 JECs have "_2024_" in the correction names.
             "JES_MC_year": "2024",
             "JME": {
-                "MC": "Summer24Prompt24_V2 Summer24Prompt25_JRV1",
+                "MC": "Summer24Prompt24_V3 Summer24Prompt25_JRV1",
                 "Run2025C": "Winter25Prompt25_V3",
                 "Run2025D": "Winter25Prompt25_V3",
                 "Run2025E": "Winter25Prompt25_V3",
