@@ -76,6 +76,8 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
                         f"WARNING: File has too few branches ({len(branches)}): {filename}"
                     )
                     # print(f"Branches present: {branches}")
+                    if fast_mode and filename in valid_files:
+                        valid_files.remove(filename)
                     continue
 
                 # Check required branches
@@ -84,6 +86,8 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
                     print(
                         f"WARNING: File missing critical branches {missing}: {filename}"
                     )
+                    if fast_mode and filename in valid_files:
+                        valid_files.remove(filename)
                     continue
 
                 if not any(met in branches for met in optional_met_branches):
@@ -91,6 +95,8 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
                         "WARNING: File missing MET branch; expected one of "
                         f"{optional_met_branches}: {filename}"
                     )
+                    if fast_mode and filename in valid_files:
+                        valid_files.remove(filename)
                     continue
 
                 # Check event count
@@ -98,6 +104,8 @@ def validate_dataset_structure(fileset, max_files_per_sample=None):
                     print(
                         f"WARNING: File has too few events ({len(events)}): {filename}"
                     )
+                    if fast_mode and filename in valid_files:
+                        valid_files.remove(filename)
                     continue
 
                 # File passed all checks
@@ -482,6 +490,18 @@ if __name__ == "__main__":
                 if args.only in sample_dict[key]:
                     sample_dict = dict([(key, [args.only])])
 
+    empty_samples = [sample for sample, files in sample_dict.items() if len(files) == 0]
+    if empty_samples:
+        print("Warning: dropping empty datasets from sample JSON:")
+        for sample in empty_samples:
+            print(f"  {sample}")
+        sample_dict = {sample: files for sample, files in sample_dict.items() if len(files) > 0}
+
+    if len(sample_dict) == 0:
+        raise RuntimeError(
+            f"No input files left to process after filtering {args.samplejson}."
+        )
+
     # Scan if files can be opened
     if args.validate:
         start = time.time()
@@ -553,7 +573,7 @@ if __name__ == "__main__":
         from coffea.util import save
 
         empty_output = {}  # Minimal dict output
-        outname = os.path.join(args.outputdir, args.output)
+        outname = coffeaoutput
         os.makedirs(os.path.dirname(outname), exist_ok=True)
         save(empty_output, outname)
         print(f"Empty output file created successfully at {outname}")
