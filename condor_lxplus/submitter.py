@@ -145,6 +145,12 @@ def get_main_parser():
         help="Only  process/skip part of the dataset. By input list of file",
     )
     parser.add_argument(
+        "--selectionModifier",
+        type=str,
+        default=None,
+        help="selection Modifier",
+    )
+    parser.add_argument(
         "--voms",
         default=None,
         type=str,
@@ -306,7 +312,6 @@ Error      = {log_dir}/job.err_$(Cluster)-$(Process)
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT_OR_EVICT
 transfer_input_files    = {transfer_input_files}
-
 on_exit_remove   = (ExitBySignal == False) && (ExitCode == 0)
 max_retries      = 3
 requirements     = (Machine =!= split(LastRemoteHost, "@")[1])

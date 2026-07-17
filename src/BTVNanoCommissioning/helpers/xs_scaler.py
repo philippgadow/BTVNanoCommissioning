@@ -3,12 +3,12 @@ import hist
 from coffea.processor import accumulate
 import os
 from BTVNanoCommissioning.helpers.xsection import xsection
+from alive_progress import alive_bar
 
 """
 Scale histograms to corresponding cross-section. Merge mutiple `.coffea` and collate the MC samples into sub-class in this function.
 """
 from BTVNanoCommissioning.helpers.xsection_13TeV import xsection_13TeV
-import numpy as np
 
 
 def scale_xs(hist, lumi, events):
@@ -53,44 +53,50 @@ def scaleSumW(output, lumi, syst_shapes=True):
 
     merged_output = merge_output(output)
 
-    for sample, accu in merged_output.items():
-        scaled[sample] = {}
-        if "sumw" not in accu.keys():
-            continue
-        for key, h_obj in accu.items():
-            scaled[sample]["sumw"] = merged_output[sample]["sumw"]
-            if not isinstance(h_obj, hist.Hist):
+    with alive_bar(
+        len(merged_output.keys()), title="Scaling by the XS, lumi, and sum of weights"
+    ) as bar:
+        for sample, accu in merged_output.items():
+            scaled[sample] = {}
+            if "sumw" not in accu.keys():
                 continue
+            for key, h_obj in accu.items():
+                scaled[sample]["sumw"] = merged_output[sample]["sumw"]
+                if not isinstance(h_obj, hist.Hist):
+                    continue
 
-            if sample in xs_dict.keys():
-                xs = xs_dict[sample] * lumi
-                nominal_sumw = merged_output[sample]["sumw"]
+                if sample in xs_dict.keys():
+                    xs = xs_dict[sample] * lumi
+                    nominal_sumw = merged_output[sample]["sumw"]
 
-                # Collect per-syst sumw accumulators (fall back to nominal if missing)
-                for syst in ["PDF", "aS", "PDFaS", "muR", "muF", "ISR", "FSR"]:
-                    for var in ["Up", "Down"]:
-                        key_reweight = f"{syst}_sumw{var}"
-                        if key_reweight in merged_output[sample].keys():
-                            scaled[sample][key_reweight] = merged_output[sample][
-                                key_reweight
-                            ]
-                        else:
-                            scaled[sample][key_reweight] = nominal_sumw
-                            print(f"WARNING: {key_reweight} not found!")
+                    # Collect per-syst sumw accumulators (fall back to nominal if missing)
+                    for syst in ["PDF", "aS", "PDFaS", "muR", "muF", "ISR", "FSR"]:
+                        for var in ["Up", "Down"]:
+                            key_reweight = f"{syst}_sumw{var}"
+                            if key_reweight in merged_output[sample].keys():
+                                scaled[sample][key_reweight] = merged_output[sample][
+                                    key_reweight
+                                ]
+                            else:
+                                scaled[sample][key_reweight] = nominal_sumw
+                                print(f"WARNING: {key_reweight} not found!")
 
-                scaled[sample][key] = copy.deepcopy(h_obj) * xs / nominal_sumw
+                    scaled[sample][key] = copy.deepcopy(h_obj) * xs / nominal_sumw
 
-                for suffix, sumw_key in syst_sumw_map.items():
-                    sumw = scaled[sample][sumw_key] if syst_shapes else nominal_sumw
-                    scaled[sample][f"{key}_{suffix}"] = copy.deepcopy(h_obj) * xs / sumw
-            else:
-                if ("data" in sample) or ("Run" in sample) or ("Double" in sample):
-                    scaled[sample][key] = copy.deepcopy(h_obj)
+                    for suffix, sumw_key in syst_sumw_map.items():
+                        sumw = scaled[sample][sumw_key] if syst_shapes else nominal_sumw
+                        scaled[sample][f"{key}_{suffix}"] = (
+                            copy.deepcopy(h_obj) * xs / sumw
+                        )
                 else:
-                    raise KeyError(
-                        sample,
-                        "is not found in xsection.py. If you're using 13TeV samples, please use xsection_13TeV.py",
-                    )
+                    if ("data" in sample) or ("Run" in sample) or ("Double" in sample):
+                        scaled[sample][key] = copy.deepcopy(h_obj)
+                    else:
+                        raise KeyError(
+                            sample,
+                            "is not found in xsection.py. If you're using 13TeV samples, please use xsection_13TeV.py",
+                        )
+            bar()
     return scaled
 
 

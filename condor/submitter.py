@@ -116,6 +116,16 @@ def get_main_parser():
         ],
         help="Run with systematics (default: %(default)s)",
     )
+    parser.add_argument(
+        "--ttbar-reweights",
+        default="none",
+        choices=["none", "hdamp_ml", "full"],
+        help=(
+            "Enable additional ttbar event reweights in correction.py. "
+            "'hdamp_ml' applies hdamp ONNX up/down; 'full' additionally reserves "
+            "hooks for frag/decay reweights."
+        ),
+    )
     parser.add_argument("--isArray", action="store_true", help="Output root files")
 
     parser.add_argument(

@@ -14,7 +14,8 @@ WORKDIR=`pwd`
 
 # Get arguments
 declare -A ARGS
-for key in workflow output samplejson year campaign isSyst isArray noHist overwrite voms chunk skipbadfiles outputDir remoteRepo; do
+for key in workflow output samplejson year campaign isSyst ttbar_reweights isArray noHist overwrite voms chunk skipbadfiles outputDir remoteRepo; do
+    echo $(jq -r ".$key" $WORKDIR/arguments.json)
     ARGS[$key]=$(jq -r ".$key" $WORKDIR/arguments.json)
 done
 
@@ -69,7 +70,11 @@ pip install -e .
 pip install psutil
 
 # Build the sample json given the job id
-python -c "import json; json.dump(json.load(open('$WORKDIR/split_samples.json'))['$JOBID'], open('sample.json', 'w'), indent=4)"
+python -c "import json, os; flname = 'split_samples.json' if os.path.isfile(f'$WORKDIR/split_samples.json') else 'split_samples_resubmit.json';  json.dump(json.load(open(f'$WORKDIR/{flname}'))['$JOBID'], open('$WORKDIR/sample.json', 'w'), indent=4)"
+cp $WORKDIR/sample.json $WORKDIR/BTVNanoCommissioning/sample.json
+
+ls -lah $WORKDIR
+ls -lah $WORKDIR/BTVNanoCommissioning
 
 # Unparse arguments and send to runner.py
 OPTS="--wf ${ARGS[workflow]} --year ${ARGS[year]} --campaign ${ARGS[campaign]} --chunk ${ARGS[chunk]}"
@@ -79,7 +84,9 @@ fi
 if [ "${ARGS[isSyst]}" != "false" ]; then
     OPTS="$OPTS --isSyst ${ARGS[isSyst]}"
 fi
-
+if [ "${ARGS[ttbar_reweights]}" != "none" ]; then
+    OPTS="$OPTS --ttbar-reweights ${ARGS[ttbar_reweights]}"
+fi
 for key in  isArray noHist overwrite skipbadfiles; do
     if [ "${ARGS[$key]}" == true ]; then
         OPTS="$OPTS --$key"

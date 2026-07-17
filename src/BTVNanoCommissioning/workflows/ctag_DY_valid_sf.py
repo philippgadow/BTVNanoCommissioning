@@ -9,7 +9,6 @@ from BTVNanoCommissioning.utils.correction import (
     common_shifts,
     reweighting,
 )
-
 from BTVNanoCommissioning.helpers.func import update, dump_lumi, PFCand_link
 from BTVNanoCommissioning.helpers.update_branch import missing_branch
 from BTVNanoCommissioning.utils.histogramming.histograms.qgtag import qg_writer
@@ -243,9 +242,11 @@ class NanoProcessor(processor.ProcessorABC):
                     empty=True,
                 )
             return {dataset: output}
+
         ####################
         # Selected objects #
         ####################
+
         sposmu = pos_dilep[event_level][:, 0]
         snegmu = neg_dilep[event_level][:, 0]
         sz = sposmu + snegmu
@@ -259,6 +260,7 @@ class NanoProcessor(processor.ProcessorABC):
                 for b in sposmu.fields
             }
         )
+
         # Keep the structure of events and pruned the object size
         pruned_ev = events[event_level]
         if self.selMod == "QG":
@@ -301,6 +303,7 @@ class NanoProcessor(processor.ProcessorABC):
         ####################
         #     Output       #
         ####################
+
         # Configure SFs
         weights = weight_manager(
             pruned_ev,

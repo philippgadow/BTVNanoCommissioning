@@ -560,6 +560,8 @@ class NanoProcessor(processor.ProcessorABC):
                             and histname.replace(f"_{i}", "") not in events.Jet.fields
                         ):
                             continue
+                        if str(i) not in histname:
+                            continue
                         h.fill(
                             syst="noSF",
                             flav=smflav,

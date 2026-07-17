@@ -24,14 +24,17 @@ export PATH="$ENVPATH:$PATH"
 python -c "import json, os; flname = 'split_samples.json' if os.path.isfile(f'$WORKDIR/split_samples.json') else 'split_samples_resubmit.json';  json.dump(json.load(open(f'$WORKDIR/{flname}'))['$JOBID'], open('$WORKDIR/sample.json', 'w'), indent=4)"
 
 declare -A ARGS
-for key in workflow output samplejson year campaign isSyst isArray noHist overwrite voms chunk skipbadfiles outputDir remoteRepo; do
+for key in workflow output samplejson year campaign isSyst isArray noHist overwrite voms chunk skipbadfiles outputDir remoteRepo selectionModifier; do
     ARGS[$key]=$(jq -r ".$key" $WORKDIR/arguments.json)
 done
 
 # Unparse arguments and send to runner.py
-OPTS="--wf ${ARGS[workflow]} --year ${ARGS[year]} --campaign ${ARGS[campaign]} --chunk ${ARGS[chunk]}"
+OPTS="--wf ${ARGS[workflow]} --year ${ARGS[year]} --campaign ${ARGS[campaign]} --chunk ${ARGS[chunk]} "
 if [ "${ARGS[voms]}" != "null" ]; then
     OPTS="$OPTS --voms ${ARGS[voms]}"
+fi
+if [ "${ARGS[selectionModifier]}" != "null" ]; then
+    OPTS="$OPTS --selectionModifier ${ARGS[selectionModifier]}"
 fi
 if [ "${ARGS[isSyst]}" != "false" ]; then
     OPTS="$OPTS --isSyst ${ARGS[isSyst]}"

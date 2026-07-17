@@ -237,6 +237,7 @@ def config_parser(parser):
         default="Summer23",
         help="Dataset campaign, change the corresponding correction files",
     )
+    parser.add_argument("--selectionModifier", default="")
     parser.add_argument(
         "--isSyst",
         default="False",
@@ -436,12 +437,12 @@ if __name__ == "__main__":
         index = args.samplejson.rfind("/") + 1
         sample_json = args.samplejson[index:]
         histoutdir = (
-            f"{outdirprefix}hists_{args.workflow}_{sample_json.rstrip('.json')}"
+            f"{outdirprefix}hists_{args.workflow}_{sample_json.replace('.json', '')}"
         )
-        outdir = f"{outdirprefix}arrays_{args.workflow}_{sample_json.rstrip('.json')}"
-        coffeaoutput = (
-            f'{histoutdir}/hists_{args.workflow}_{(sample_json).rstrip(".json")}.coffea'
+        outdir = (
+            f"{outdirprefix}arrays_{args.workflow}_{sample_json.replace('.json', '')}"
         )
+        coffeaoutput = f"{histoutdir}/hists_{args.workflow}_{sample_json.replace('.json', '')}.coffea"
     if not args.noHist:
         os.system(f"mkdir -p {histoutdir}")
     # load dataset
@@ -548,7 +549,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # load workflow
-    processor_instance = workflows[args.workflow](
+    proc_args = [
         args.year,
         args.campaign,
         outdir,
@@ -556,7 +557,11 @@ if __name__ == "__main__":
         args.isArray,
         args.noHist,
         args.chunk,
-    )
+    ]
+    if args.selectionModifier != "":
+        proc_args.append(args.selectionModifier)
+
+    processor_instance = workflows[args.workflow](*proc_args)
     setattr(processor_instance, "ttbar_reweights", args.ttbar_reweights)
 
     if args.skip_structure_validation:
@@ -713,12 +718,14 @@ if __name__ == "__main__":
                         raise Exception("Invalid input, exiting")
 
                 if not skip_tar:
+                    jobdirs = [d for d in os.listdir(base_dir) if d.startswith("jobs_")]
                     make_tarfile(
                         "BTVNanoCommissioning.tar.gz",
                         base_dir,
                         exclude_dirs=[
                             "BTVNanoCommissioning.egg-info",
-                        ],
+                        ]
+                        + jobdirs,
                     )
             import shutil
 

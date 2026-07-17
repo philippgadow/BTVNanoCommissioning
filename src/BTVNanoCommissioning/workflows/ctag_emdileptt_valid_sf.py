@@ -171,7 +171,7 @@ class NanoProcessor(processor.ProcessorABC):
 
         # Muon jet cuts
         smu_iso = ak.all(
-            events.Jet.metric_table(soft_muon) > 0.4, axis=2, mask_identity=True
+            events.Jet.metric_table(soft_muon) < 0.4, axis=2, mask_identity=True
         )
         mujetsel = ak.fill_none(
             smu_iso & ((events.Jet.muonIdx1 != -1) | (events.Jet.muonIdx2 != -1)),

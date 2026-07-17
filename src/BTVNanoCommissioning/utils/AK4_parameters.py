@@ -56,6 +56,20 @@ correction_config = {
                 "EGM": "Run2-2016preVFP-UL-NanoAODv15",
                 "electronSS": "Run2-2016preVFP-UL-NanoAODv15",
                 "jetveto": "Run2-2016preVFP-UL-NanoAODv15",
+                "JME": "Run2-2016preVFP-UL-NanoAODv15",
+            },
+        },
+        "tt_semilep_mu": {
+            "MUO": {
+                "mu_ID": "NUM_TightID_DEN_TrackerMuons",
+                "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
+                "mu_Trig": "NUM_IsoMu24_or_IsoTkMu24_DEN_CutBasedIdTight_and_PFIsoTight",  # in the future this should be something like NUM_IsoMu24_DEN_CutBasedIdTight_and_promptMVA_WP64ID
+            },
+        },
+        "tt_semilep_el": {
+            "EGM": {
+                "ele_Reco 2016preVFP UL-Electron-ID-SF": "",
+                "ele_ID 2016preVFP UL-Electron-ID-SF": "wp80iso",
             },
         },
     },
@@ -91,6 +105,20 @@ correction_config = {
                 "EGM": "Run2-2016postVFP-UL-NanoAODv15",
                 "electronSS": "Run2-2016postVFP-UL-NanoAODv15",
                 "jetveto": "Run2-2016postVFP-UL-NanoAODv15",
+                "JME": "Run2-2016postVFP-UL-NanoAODv15",
+            },
+        },
+        "tt_semilep_mu": {
+            "MUO": {
+                "mu_ID": "NUM_TightID_DEN_TrackerMuons",
+                "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
+                "mu_Trig": "NUM_IsoMu24_or_IsoTkMu24_DEN_CutBasedIdTight_and_PFIsoTight",  # in the future this should be something like NUM_IsoMu24_DEN_CutBasedIdTight_and_promptMVA_WP64ID
+            },
+        },
+        "tt_semilep_el": {
+            "EGM": {
+                "ele_Reco 2016postVFP UL-Electron-ID-SF": "",
+                "ele_ID 2016postVFP UL-Electron-ID-SF": "wp80iso",
             },
         },
     },
@@ -130,6 +158,19 @@ correction_config = {
                 "jetveto": "Run2-2017-UL-NanoAODv15",
             },
         },
+        "tt_semilep_mu": {
+            "MUO": {
+                "mu_ID": "NUM_TightID_DEN_TrackerMuons",
+                "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
+                "mu_Trig": "NUM_IsoMu27_DEN_CutBasedIdTight_and_PFIsoTight",  # in the future this should be something like NUM_IsoMu24_DEN_CutBasedIdTight_and_promptMVA_WP64ID
+            },
+        },
+        "tt_semilep_el": {
+            "EGM": {
+                "ele_Reco 2017 UL-Electron-ID-SF": "",
+                "ele_ID 2017 UL-Electron-ID-SF": "wp80iso",
+            },
+        },
     },
     "2018-UL": {
         "default": {
@@ -164,6 +205,19 @@ correction_config = {
                 "EGM": "Run2-2018-UL-NanoAODv15",
                 "electronSS": "Run2-2018-UL-NanoAODv15",
                 "jetveto": "Run2-2018-UL-NanoAODv15",
+            },
+        },
+        "tt_semilep_mu": {
+            "MUO": {
+                "mu_ID": "NUM_TightID_DEN_TrackerMuons",
+                "mu_Iso": "NUM_TightRelIso_DEN_TightIDandIPCut",
+                "mu_Trig": "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight",  # in the future this should be something like NUM_IsoMu24_DEN_CutBasedIdTight_and_promptMVA_WP64ID
+            },
+        },
+        "tt_semilep_el": {
+            "EGM": {
+                "ele_Reco 2018 UL-Electron-ID-SF": "",
+                "ele_ID 2018 UL-Electron-ID-SF": "wp80iso",
             },
         },
     },
@@ -244,7 +298,7 @@ correction_config = {
             "DC": "Cert_Collisions2023_366442_370790_Golden.json",
             "LUM": "puwei_Summer23.histo.root",
             "JME": {
-                "MC": "Summer23Prompt23_V4 Summer23Prompt23_RunCv1234_JRV2",
+                "MC": "Summer23Prompt23_V4 Summer23Prompt23_RunCv1234_JRV3",
                 "Run2023C": "Summer23Prompt23_V4",
             },
             "jetveto": {"Summer23Prompt23_RunC_V1": "jetvetomap"},
@@ -275,7 +329,7 @@ correction_config = {
             "DC": "Cert_Collisions2023_366442_370790_Golden.json",
             "LUM": "puwei_Summer23BPix.histo.root",
             "JME": {
-                "MC": "Summer23BPixPrompt23_V4 Summer23BPixPrompt23_RunD_JRV2",
+                "MC": "Summer23BPixPrompt23_V4 Summer23BPixPrompt23_RunD_JRV3",
                 "Run2023D": "Summer23BPixPrompt23_V4",
             },
             "JES_MC_year": "2023BPix",
@@ -306,14 +360,14 @@ correction_config = {
             "DC": "Cert_Collisions2024_378981_386951_Golden.json",
             "LUM": "puWeights_BCDEFGHI.json.gz",
             "JME": {
-                "MC": "Summer24Prompt24_V3 Summer24Prompt24_JRV1",
-                "Run2024C": "Summer24Prompt24_V3",
-                "Run2024D": "Summer24Prompt24_V3",
-                "Run2024E": "Summer24Prompt24_V3",
-                "Run2024F": "Summer24Prompt24_V3",
-                "Run2024G": "Summer24Prompt24_V3",
-                "Run2024H": "Summer24Prompt24_V3",
-                "Run2024I": "Summer24Prompt24_V3",
+                "MC": "Summer24Prompt24_V5 Summer24Prompt24_JRV2",
+                "Run2024C": "Summer24Prompt24_V5",
+                "Run2024D": "Summer24Prompt24_V5",
+                "Run2024E": "Summer24Prompt24_V5",
+                "Run2024F": "Summer24Prompt24_V5",
+                "Run2024G": "Summer24Prompt24_V5",
+                "Run2024H": "Summer24Prompt24_V5",
+                "Run2024I": "Summer24Prompt24_V5",
             },
             "jetveto": {"Summer24Prompt24_RunBCDEFGHI_V1": "jetvetomap"},
             "MUO": {
@@ -339,6 +393,21 @@ correction_config = {
                 "ele_Reco 2024Prompt Electron-ID-SF": "",
                 "ele_ID 2024Prompt Electron-ID-SF": "PromptMVA-Tight",
             },
+            # "BTV": {"ctag": "ctagging.json.gz"},
+        },
+        "tt_semilep_mu": {
+            "MUO": {
+                "mu_ID": "NUM_TightID_DEN_TrackerMuons",
+                "mu_Iso": "NUM_promptMVA_WP64ID_DEN_TightID",
+                "mu_Trig": "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight",  # in the future this should be something like NUM_IsoMu24_DEN_CutBasedIdTight_and_promptMVA_WP64ID
+            },
+        },
+        "tt_semilep_el": {
+            "EGM": {
+                "ele_Reco 2024Prompt Electron-ID-SF": "",
+                "ele_ID 2024Prompt Electron-ID-SF": "PromptMVA-Tight",
+                "ele_Trig 2024Prompt Electron-HLT-SF": "HLT_SF_Ele30_MVAiso80ID",  # in the future this should be something like HLT_SF_Ele30_PromptMVAID
+            },
         },
     },
     "Prompt25": {
@@ -347,16 +416,15 @@ correction_config = {
             "LUM": "puWeights_2025pp_Golden_Summer24_25ns_69200ub.json.gz",
             # Year-dependent JES regrouped uncertainties use the MC JEC campaign year,
             # not the data year.  Summer24 JECs have "_2024_" in the correction names.
-            "JES_MC_year": "2024",
             "JME": {
-                "MC": "Summer24Prompt24_V3 Summer24Prompt25_JRV1",
-                "Run2025C": "Winter25Prompt25_V3",
-                "Run2025D": "Winter25Prompt25_V3",
-                "Run2025E": "Winter25Prompt25_V3",
-                "Run2025F": "Winter25Prompt25_V3",
-                "Run2025G": "Winter25Prompt25_V3",
+                "MC": "Summer24Prompt25_V3 Summer24Prompt25_JRV2",
+                "Run2025C": "Summer24Prompt25_V3",
+                "Run2025D": "Summer24Prompt25_V3",
+                "Run2025E": "Summer24Prompt25_V3",
+                "Run2025F": "Summer24Prompt25_V3",
+                "Run2025G": "Summer24Prompt25_V3",
             },
-            "jetveto": {"Winter25Prompt25_RunCDEFG_V1": "jetvetomap"},
+            "jetveto": {"Summer24Prompt25_RunCDEFG_V1": "jetvetomap"},
             "MUO": {
                 "mu_ID": "NUM_TightID_DEN_TrackerMuons",
                 "mu_Iso": "NUM_TightPFIso_DEN_TightID",
@@ -377,9 +445,23 @@ correction_config = {
             # JME_MC: MC truth JECs must come from the Summer24 era (L2Relative differs).
             # jetveto: jetvetomap from Winter25 JME era.
             "cvmfs_override": {
-                "JME": "Run3-25Prompt-Winter25-NanoAODv15",
-                "JME_MC": "Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15",
-                "jetveto": "Run3-25Prompt-Winter25-NanoAODv15",
+                "JME": "Run3-25Prompt-Summer24-NanoAODv15",
+                "JME_MC": "Run3-25Prompt-Summer24-NanoAODv15",
+                "jetveto": "Run3-25Prompt-Summer24-NanoAODv15",
+            },
+        },
+        "tt_semilep_mu": {
+            "MUO": {
+                "mu_ID": "NUM_TightID_DEN_TrackerMuons",
+                "mu_Iso": "NUM_promptMVA_WP64ID_DEN_TightID",
+                "mu_Trig": "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight",  # in the future this should be something like NUM_IsoMu24_DEN_CutBasedIdTight_and_promptMVA_WP64ID
+            },
+        },
+        "tt_semilep_el": {
+            "EGM": {
+                "ele_Reco 2024Prompt Electron-ID-SF": "",
+                "ele_ID 2024Prompt Electron-ID-SF": "PromptMVA-Tight",
+                "ele_Trig 2024Prompt Electron-HLT-SF": "HLT_SF_Ele30_MVAiso80ID",  # in the future this should be something like HLT_SF_Ele30_PromptMVAID
             },
         },
     },

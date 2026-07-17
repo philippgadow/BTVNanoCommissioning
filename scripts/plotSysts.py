@@ -58,6 +58,7 @@ parser.add_argument(
         "2D_emu_ttdilep_sf",
         "2D_e_ttsemilep_sf",
         "2D_mu_ttsemilep_sf",
+        "sf_ttsemilep_tnp",
     ],
     help="Workflow.",
 )
@@ -205,6 +206,7 @@ colors10 = {
     "puweight": "#000000",  # black
     "JEReta0to1p93": "#3f90da",
     "JEReta1p93to2p5": "#ffa90e",
+    "JERTotal": "#ffa90e",
     "UES": "#bd1f01",
     "ele_Reco": "#94a4a2",
     "ele_ID": "#832db6",

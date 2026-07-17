@@ -23,7 +23,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--updateJDL", "-u", action="store_true", help="Update submit.jdl file"
-)  # , action=store_true)
+)
 parser.add_argument("--test", "-t", action="store_true", help="test behaviour")
 
 args = parser.parse_args()

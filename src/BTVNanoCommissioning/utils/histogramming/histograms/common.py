@@ -161,6 +161,7 @@ def _get_discriminators(axes, **kwargs):
     for d in disc_list:
         if d not in jet_fields:
             continue
+
         disc_axes = {
             "btag": Hist.axis.Regular(50, 0.0, 1, name="discr", label=d),
             "Bprob": Hist.axis.Regular(50, 0, 10, name="discr", label=d),

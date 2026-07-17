@@ -1,5 +1,4 @@
 from BTVNanoCommissioning.helpers.func import update
-from BTVNanoCommissioning.utils.correction import add_jec_variables
 import numpy as np
 
 
@@ -43,8 +42,8 @@ def missing_branch(events):
             "This branch is required for JEC corrections. "
             "Check that the input NanoAOD file contains Rho_fixedGridRhoFastjetAll."
         )
-    ## calculate missing nodes
 
+    ## calculate missing nodes
     if not hasattr(events.Jet, "btagDeepFlavB"):
         jets = events.Jet
         jets["btagDeepFlavB"] = (

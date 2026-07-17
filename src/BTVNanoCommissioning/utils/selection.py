@@ -217,7 +217,7 @@ def ele_promptmvaid(events, campaign):
         (abs(ele_etaSC) < 1.4442) | ((abs(ele_etaSC) > 1.566) & (abs(ele_etaSC) < 2.5))
     ) & (
         events.Electron.promptMVA >= 0.9
-        if "Summer24" in campaign or "Prompt25" in campaign
+        if campaign in ["Summer24", "Winter25", "Prompt25"]
         else 0.3
     )
     return elemask
@@ -315,7 +315,7 @@ def btag_wp(jets, year, campaign, tagger, borc, wp):
 
 
 btag_wp_dict = {
-    "2016_2016preVFP-UL": {
+    "2016preVFP_2016preVFP-UL": {
         "UParTAK4": {
             "b": {
                 "No": 0.0,
@@ -334,7 +334,7 @@ btag_wp_dict = {
             },
         },
     },
-    "2016_2016postVFP-UL": {
+    "2016postVFP_2016postVFP-UL": {
         "UParTAK4": {
             "b": {
                 "No": 0.0,
