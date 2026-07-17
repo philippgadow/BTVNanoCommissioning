@@ -128,7 +128,7 @@ def load_SF(year, campaign, selMod="default", syst=False):
                         )
                     except FileNotFoundError:
                         correct_map["LUM"] = correctionlib.CorrectionSet.from_file(
-                            f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{_lum_cvmfs}/prelim/puWeights_2025pp_Golden_Summer24_25ns_69200ub.json.gz"
+                            f"/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/{_lum_cvmfs}/latest/puWeights_2025pp_Golden_Summer24_25ns_69200ub.json.gz"
                         )
             ## Otherwise custom files
             else:
