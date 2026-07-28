@@ -1138,7 +1138,10 @@ if __name__ == "__main__":
             if "brux" in args.executor:
                 cluster.adapt(minimum=args.scaleout, maximum=336)
             else:
-                cluster.adapt(minimum=args.scaleout)
+                # Cap the maximum number of workers at args.scaleout. Without an
+                # explicit maximum, dask's adaptive scaler grows the worker count
+                # without bound and floods the schedd, tripping MAX_JOBS_PER_OWNER.
+                cluster.adapt(minimum=1, maximum=args.scaleout)
             client = Client(cluster)
             print("Waiting for at least one worker...")
             client.wait_for_workers(1)
