@@ -496,7 +496,9 @@ if __name__ == "__main__":
         print("Warning: dropping empty datasets from sample JSON:")
         for sample in empty_samples:
             print(f"  {sample}")
-        sample_dict = {sample: files for sample, files in sample_dict.items() if len(files) > 0}
+        sample_dict = {
+            sample: files for sample, files in sample_dict.items() if len(files) > 0
+        }
 
     if len(sample_dict) == 0:
         raise RuntimeError(
