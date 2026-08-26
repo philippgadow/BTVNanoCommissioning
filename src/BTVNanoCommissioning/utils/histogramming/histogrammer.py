@@ -469,15 +469,9 @@ def histo_writter(pruned_ev, output, weights, systematics, isSyst, SF_map):
             output["MET_phi"].fill(syst, flatten(pruned_ev.MET.phi), weight=weight)
 
         # ttbar dilepton kin workflow
-        if "kindisc" in output.keys():
+        if "close_mlj" in output.keys():
             flat_flav = flatten(pruned_ev.flavour)
             jet_syst = np.full(len(flat_flav), syst[0])
-            output["kindisc"].fill(
-                jet_syst,
-                flat_flav,
-                flatten(pruned_ev.kindisc),
-                weight=flatten(ak.broadcast_arrays(weight, pruned_ev.kindisc)[0]),
-            )
             output["close_mlj"].fill(
                 jet_syst,
                 flat_flav,

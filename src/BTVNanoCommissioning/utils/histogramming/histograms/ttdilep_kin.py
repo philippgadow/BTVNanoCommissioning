@@ -4,9 +4,6 @@ import hist as Hist
 def get_histograms(axes, **kwargs):
     hists = {}
 
-    hists["kindisc"] = Hist.Hist(
-        axes["syst"], axes["flav"], axes["bdt"], Hist.storage.Weight()
-    )
     hists["close_mlj"] = Hist.Hist(
         axes["syst"], axes["flav"], axes["mass"], Hist.storage.Weight()
     )

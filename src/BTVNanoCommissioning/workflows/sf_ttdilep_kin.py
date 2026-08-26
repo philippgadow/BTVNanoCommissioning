@@ -19,12 +19,6 @@ import os
 import awkward as ak
 import numpy as np
 
-try:
-    xgboost_support = True
-    import xgboost as xgb
-except ModuleNotFoundError:
-    print("XGBoost missing, deactivating BDT output")
-    xgboost_support = False
 from coffea import processor
 from coffea.nanoevents import NanoAODSchema
 from os.path import join
@@ -147,69 +141,6 @@ def delta_eta(p1, p2):
 
 
 # ----------------------------
-# Helper for BDT inference
-# ----------------------------
-def run_bdt_inference(features, jetrank, bdt_event_hash, model_base):
-    """
-    Run XGBoost inference for each jet category (leading, subleading, others)
-    and event split (even/odd from bdt_event_hash) and return a numpy array of predictions.
-
-    Parameters:
-      features      : dict mapping feature name to padded numpy arrays (shape: [n_events, max_jets])
-      jetrank       : padded numpy array of jet ranks (shape: [n_events, max_jets])
-      bdt_event_hash: padded numpy array of event hash repeated per jet (shape: [n_events, max_jets])
-      model_base    : base directory where the JSON models are stored (including year_campaign subdir)
-
-    Returns:
-      kindisc       : numpy array (shape: [n_events, max_jets]) with the BDT predictions.
-    """
-    n_events, max_jets = jetrank.shape
-    kindisc = np.full((n_events, max_jets), np.nan)
-    feature_names = [
-        "close_mlj",
-        "close_dphi",
-        "close_deta",
-        "close_lj2ll_dphi",
-        "close_lj2ll_deta",
-        "far_mlj",
-        "far_dphi",
-        "far_deta",
-        "far_lj2ll_dphi",
-        "far_lj2ll_deta",
-        "j2ll_dphi",
-        "j2ll_deta",
-    ]
-
-    for category in ["leading", "subleading", "others"]:
-        if category == "leading":
-            cat_mask = jetrank == 0
-        elif category == "subleading":
-            cat_mask = jetrank == 1
-        elif category == "others":
-            cat_mask = jetrank >= 2
-        else:
-            cat_mask = np.zeros_like(jetrank, dtype=bool)
-
-        for split in [0, 1]:
-            split_mask = bdt_event_hash.astype(int) % 2 == split
-            mask = cat_mask & split_mask
-            if np.sum(mask) == 0:
-                continue
-            X_list = []
-            for fname in feature_names:
-                X_list.append(features[fname][mask])
-            X_selected = np.column_stack(X_list)
-            dmatrix = xgb.DMatrix(X_selected, feature_names=feature_names)
-            model_file = join(model_base, f"bdt_{category}_split{split}.json")
-            bst = xgb.Booster()
-            bst.load_model(model_file)
-            preds = bst.predict(dmatrix)
-            kindisc[mask] = preds
-
-    return kindisc
-
-
-# ----------------------------
 # Processor definition
 # ----------------------------
 class NanoProcessor(processor.ProcessorABC):
@@ -222,7 +153,7 @@ class NanoProcessor(processor.ProcessorABC):
         isArray=True,
         noHist=False,
         chunksize=75000,
-        model_base="KIN_MVA_BDT",
+        selectionModifier="",
     ):
         self._year = year
         self._campaign = campaign
@@ -232,24 +163,70 @@ class NanoProcessor(processor.ProcessorABC):
         self.noHist = noHist
         self.lumiMask = load_lumi(self._campaign)
         self.chunksize = chunksize
-        # try with os if model base path exists otherwise set self.model_base to None
-        if os.path.exists(join(model_base, f"{self._campaign}_{self._year}")):
-            self.model_base = model_base
-        else:
-            self.model_base = None
-        username = os.environ.get("USER")
-        cern_eos_base = f"/eos/user/{username[0]}/{username}"
-        desy_dust_base = f"/data/dust/user/{username}"
-        if os.path.exists(cern_eos_base):
+        # Substring matching (not equality) so modifiers can be COMBINED, e.g.
+        # selectionModifier="lowpt_samesign". Exact equality silently dropped the
+        # low-pT setting whenever a second modifier was appended. Backward
+        # compatible: the only values used previously were "" and "lowpt".
+        self.do_lowpt = "lowpt" in selectionModifier
+        # Same-sign control region: inverts the e-mu charge requirement to select
+        # a fake-lepton enriched sample for a data-driven background estimate.
+        self.do_samesign = "samesign" in selectionModifier
+        # settings for output
+        #
+        # The array output directory is resolved per worker. Autodetection is
+        # unreliable on batch nodes: if neither the EOS nor the dust mount is
+        # visible (or $USER is unset), the old code silently fell back to the
+        # worker's cwd, scattering arrays into the submission directory while
+        # the job still reported success.
+        #
+        # SFB_ARRAY_BASE pins the destination explicitly and is the recommended
+        # way to run on HTCondor/dask. SFB_REQUIRE_SHARED_OUTPUT=1 additionally
+        # turns the cwd fallback into a hard error, so a missing mount fails the
+        # job instead of producing arrays nobody notices.
+        username = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+        explicit_base = os.environ.get("SFB_ARRAY_BASE", "").strip()
+        require_shared = os.environ.get(
+            "SFB_REQUIRE_SHARED_OUTPUT", ""
+        ).lower() in ("1", "true", "yes", "on")
+
+        cern_eos_base = f"/eos/user/{username[0]}/{username}" if username else ""
+        desy_dust_base = f"/data/dust/user/{username}" if username else ""
+
+        if explicit_base:
+            # Explicit wins; create it so a typo surfaces here rather than as a
+            # silently misplaced array much later.
+            base_path = explicit_base
+            os.makedirs(base_path, exist_ok=True)
+            shared_output = True
+        elif cern_eos_base and os.path.exists(cern_eos_base):
             base_path = cern_eos_base
-        elif os.path.exists(desy_dust_base):
+            shared_output = True
+        elif desy_dust_base and os.path.exists(desy_dust_base):
             base_path = desy_dust_base
+            shared_output = True
         else:
             base_path = os.getcwd()
+            shared_output = False
+
+        if not shared_output:
+            msg = (
+                "sf_ttdilep_kin: no shared output area found "
+                f"(USER={username!r}, tried {cern_eos_base!r} and "
+                f"{desy_dust_base!r}). Arrays would be written under the "
+                f"current directory ({base_path}) instead of the shared area. "
+                "Set SFB_ARRAY_BASE to the desired base path."
+            )
+            if require_shared:
+                raise RuntimeError(msg)
+            print(f"WARNING: {msg}")
+
         self.out_dir_base = os.path.join(
             base_path,
-            "btv/phys_btag/sfb-ttkinfit/arrays" + ("_bdt" if self.model_base else ""),
+            "btv/phys_btag/sfb-ttkinfit/arrays"
+            + ("_lowpt" if self.do_lowpt else "")
+            + ("_samesign" if self.do_samesign else ""),
         )  # noqa
+        print(f"sf_ttdilep_kin: array output base = {self.out_dir_base}")
 
         ## Load corrections
         self.SF_map = load_SF(self._year, self._campaign)
@@ -316,11 +293,13 @@ class NanoProcessor(processor.ProcessorABC):
             output = dump_lumi(events[req_lumi], output)
 
         ## HLT
-        # 2016preVFP data does not have _DZ trigger variants; use non-DZ paths instead.
-        if self._campaign in ["2016preVFP-UL"]:
+        # 2016 (pre- and post-VFP) only has the Mu23_Ele12 and Mu8_Ele23 emu
+        # cross triggers, in their non-DZ form (the Mu12_Ele23 path and the _DZ
+        # variants were introduced in 2017). Using the non-DZ paths covers the
+        # full 2016 dataset.
+        if self._campaign in ["2016preVFP-UL", "2016postVFP-UL"]:
             triggers = [
                 "Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL",
-                "Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL",
                 "Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL",
             ]
         else:
@@ -371,11 +350,12 @@ class NanoProcessor(processor.ProcessorABC):
         # Jet selection
         # ----------------------------
         jets = events.Jet
+        jet_pt_threshold = 30.0 if not self.do_lowpt else 15.0
         # Apply jet cuts defined in jet_id (see utils/selection.py)
         jet_sel = ak.fill_none(
-            jet_id(events, self._campaign)
+            jet_id(events, self._campaign, min_pt=jet_pt_threshold)
             & (abs(jets.eta) < 2.5)
-            & (jets.pt > 30.0)
+            & (jets.pt > jet_pt_threshold)
             & (
                 ak.all(
                     jets.metric_table(events.Muon) > 0.4,
@@ -401,8 +381,10 @@ class NanoProcessor(processor.ProcessorABC):
         # ----------------------------
         # Event selection
         # ----------------------------
-        # Opposite electric charge
-        req_opposite_charge = (ele0.charge * mu0.charge) == -1
+        # Electric-charge requirement: opposite-sign for the measurement region,
+        # same-sign for the fake-enriched control region (do_samesign).
+        _charge_sign = 1 if self.do_samesign else -1
+        req_opposite_charge = (ele0.charge * mu0.charge) == _charge_sign
         req_opposite_charge = ak.fill_none(req_opposite_charge, False)
 
         # Missing transverse momentum > 40 GeV
@@ -500,32 +482,6 @@ class NanoProcessor(processor.ProcessorABC):
         )
         padded_jetrank = pad_jet_var(ak.argsort(ak.argsort(-ev_jets.pt)))
 
-        if xgboost_support and self.model_base:
-            features = {
-                "close_mlj": pad_jet_var(close_mlj),
-                "close_dphi": pad_jet_var(close_dphi),
-                "close_deta": pad_jet_var(close_deta),
-                "close_lj2ll_dphi": pad_jet_var(close_lj2ll_dphi),
-                "close_lj2ll_deta": pad_jet_var(close_lj2ll_deta),
-                "far_mlj": pad_jet_var(far_mlj),
-                "far_dphi": pad_jet_var(far_dphi),
-                "far_deta": pad_jet_var(far_deta),
-                "far_lj2ll_dphi": pad_jet_var(far_lj2ll_dphi),
-                "far_lj2ll_deta": pad_jet_var(far_lj2ll_deta),
-                "j2ll_dphi": pad_jet_var(j2ll_dphi),
-                "j2ll_deta": pad_jet_var(j2ll_deta),
-            }
-            full_model_base = join(self.model_base, f"{self._campaign}_{self._year}")
-            kindisc = run_bdt_inference(
-                features, padded_jetrank, bdt_event_hash, full_model_base
-            )
-            # convert back to awkward array
-            kindisc_flat = ak.flatten(kindisc)
-            kindisc_flat_no_nan = kindisc_flat[~np.isnan(kindisc_flat)]
-            kindisc = ak.unflatten(kindisc_flat_no_nan, ak.num(ev_jets))
-        else:
-            kindisc = ak.zeros_like(ev_jets.pt, dtype=int)
-
         # Compute per-jet tagger discriminants (fill with NaN if not available)
         def get_tagger(jets, tag):
             return jets[tag] if tag in jets.fields else ak.full_like(jets.pt, np.nan)
@@ -618,8 +574,6 @@ class NanoProcessor(processor.ProcessorABC):
             # --- Assign the tagger variables ---
             for tag, tag_var in taggers.items():
                 pruned_ev_array[tag] = pad_jet_var(tag_var)
-            # --- Assign the output from the BDT ---
-            pruned_ev_array["kindisc"] = pad_jet_var(kindisc)
 
             array_writer(
                 self,
@@ -642,7 +596,6 @@ class NanoProcessor(processor.ProcessorABC):
             pruned_ev_hist["SelElectron"] = ev_electrons[:, 0]
             pruned_ev_hist["njet"] = ak.num(ev_jets)
             pruned_ev_hist["flavour"] = flavour
-            pruned_ev_hist["kindisc"] = kindisc
             pruned_ev_hist["close_mlj"] = close_mlj
             pruned_ev_hist["close_deta"] = close_deta
             pruned_ev_hist["close_dphi"] = close_dphi
