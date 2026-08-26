@@ -29,6 +29,28 @@ bininfo = get_definitions()
 SV_bininfo = get_definitions(include_definitions=["SV"])
 
 
+def _safe_mpl_magic(ax):
+    """Run hep.mpl_magic robustly across mplhep versions and legend sizes.
+
+    mpl_magic auto-adjusts the legend/axis layout but raises RuntimeError when a
+    legend cannot be fit (common with many stacked components, e.g. after adding
+    minor backgrounds), and mplhep versions disagree on the `soft_fail` kwarg.
+    It is purely cosmetic, so fall back gracefully and still save the plot.
+    """
+    import inspect
+    try:
+        supports_soft_fail = "soft_fail" in inspect.signature(hep.mpl_magic).parameters
+    except (ValueError, TypeError):
+        supports_soft_fail = False
+    try:
+        if supports_soft_fail:
+            hep.mpl_magic(ax=ax, soft_fail=True)
+        else:
+            hep.mpl_magic(ax=ax)
+    except Exception as e:
+        print(f"[plotdataMC] mpl_magic layout auto-adjust skipped: {e}")
+
+
 def get_parser():
     parser = argparse.ArgumentParser(description="Hist plotter for commissioning")
     parser.add_argument("--lumi", required=True, type=float, help="Luminosity in /pb")
@@ -725,19 +747,13 @@ def main(args):
             hep.mpl_magic(ax=ax)
         except RuntimeError as e:
             print(f"Warning: {e}")
-            print("Using soft_fail=True for legend placement")
-            try:
-                # Try with soft_fail=True
-                hep.mpl_magic(ax=ax, soft_fail=True)
-            except Exception as e2:
-                print(f"Still failed: {e2}")
-                # Continue anyway - the plot will still be usable
+            _safe_mpl_magic(ax)
 
         if args.log:
             name += "_log"
             ax.set_yscale("log")
             ax.set_ylim(bottom=0.1)
-            hep.mpl_magic(ax=ax)
+            _safe_mpl_magic(ax)
 
         if args.logx:
             name += "_logx"
